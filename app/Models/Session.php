@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class Session extends Model
@@ -13,7 +14,17 @@ class Session extends Model
     'location', 'maps_url', 'max_participants', 'price', 'status', 'created_by'
 ];
 
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $casts = [
         'scheduled_at' => 'datetime',
+        'end_time' => 'string'
 ];
+
+public function group()
+    {
+        return $this->belongsTo(Group::class);
+    }
+
 }

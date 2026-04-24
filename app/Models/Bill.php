@@ -14,7 +14,7 @@ class Bill extends Model
         'id', 
         'tenant_id', 
         'group_id', 
-        // 'session_id', // Buka ini nanti setelah tabel sesi dibuat
+        'session_id', // Buka ini nanti setelah tabel sesi dibuat
         'name', 
         'amount', 
         'due_date', 
@@ -26,6 +26,9 @@ class Bill extends Model
     protected $casts = [
         'due_date' => 'datetime',
     ];
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     // --- Relasi ---
     public function group()
@@ -41,5 +44,9 @@ class Bill extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function session()
+    {
+        return $this->belongsTo(Session::class);
     }
 }

@@ -33,4 +33,10 @@ class Group extends Model
     {
         return $this->belongsTo(User::class, 'admin_user_id');
     }
+
+    // --- Relasi ---
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 }

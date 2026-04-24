@@ -55,4 +55,29 @@ class MitraController extends Controller
             ]
         ]);
     }
+
+    public function index()
+    {
+        // Ambil semua mitra. (Nanti bisa di-join dengan tabel tenant/group untuk menghitung total_members)
+        $mitras = \App\Models\Mitra::orderBy('created_at', 'desc')->get();
+        return response()->json([
+            'success' => true,
+            'data' => $mitras
+        ]);
+    }
+
+    // Fungsi untuk memblokir/menonaktifkan mitra
+    public function suspend($id)
+    {
+        $mitra = \App\Models\Mitra::findOrFail($id);
+        $mitra->status = 'suspended'; // atau 'inactive', sesuaikan dengan enum di databasemu
+        $mitra->save();
+
+        // Opsional: Kamu juga bisa menonaktifkan Tenant milik mitra ini di sini
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Mitra berhasil dinonaktifkan'
+        ]);
+    }
 }

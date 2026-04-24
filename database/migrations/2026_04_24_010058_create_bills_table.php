@@ -15,8 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('tenant_id')->constrained('tenants')->cascadeOnDelete();
             $table->foreignUuid('group_id')->constrained('groups')->cascadeOnDelete();
-            // $table->foreignUuid('session_id')->nullable(); // Kita matikan dulu karena model Session belum ada
-            
+            $table->foreignUuid('session_id')->nullable()->constrained('play_sessions')->cascadeOnDelete();
             $table->string('name'); // Contoh: "Iuran Futsal 25 April"
             $table->integer('amount'); // Nominal per orang: 50000
             $table->dateTime('due_date'); // Jatuh tempo penagihan

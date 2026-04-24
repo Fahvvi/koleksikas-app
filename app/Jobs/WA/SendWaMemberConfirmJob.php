@@ -48,7 +48,7 @@ class SendWaMemberConfirmJob implements ShouldQueue
 
         try {
             // Kirim via Waha Service
-            $wahaService->send($user->phone_wa, $message, $tenantId);
+            $wahaService->send($user->phone_wa, $message);
         } catch (\Exception $e) {
             Log::error("WA Job Failed: " . $e->getMessage());
             // Di sini nanti bisa tambahkan logika retry atau simpan status gagal ke database

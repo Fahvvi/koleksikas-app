@@ -45,4 +45,9 @@ class Tenant extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function paymentConfig()
+    {
+        return $this->hasOne(PaymentConfig::class);
+    }
 }

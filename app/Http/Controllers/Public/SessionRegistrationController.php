@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Models\PaymentConfig;
 use App\Models\Session;
 use App\Models\User;
 use App\Models\Transaction;
@@ -41,8 +42,17 @@ class SessionRegistrationController extends Controller
                 'status' => 'pending'
             ]);
 
-            // 3. Panggil Payment Gateway sesuai pilihan Admin
-            $paymentConfig = $tenant->paymentConfig; // Ambil config dari DB
+            // 3. AMBIL CONFIG DULU & CEK VALIDASINYA (PINDAH KE SINI)
+            $paymentConfig = PaymentConfig::where('tenant_id', $tenant->id)->first();
+
+            if (!$paymentConfig) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Konfigurasi pembayaran untuk tenant ini belum diatur.'
+                ], 400);
+            }
+
+            // 4. BARU PANGGIL SERVICE (SETELAH DIPASTIKAN TIDAK NULL)
             $paymentService = $this->getPaymentService($paymentConfig);
             
             $charge = $paymentService->createCharge([
@@ -51,7 +61,7 @@ class SessionRegistrationController extends Controller
                 'bill_item_id' => $billItem->id
             ]);
 
-            // 4. Catat Transaksi
+            // 5. Catat Transaksi
             Transaction::create([
                 'id' => Str::uuid(),
                 'tenant_id' => $tenant->id,
@@ -59,7 +69,7 @@ class SessionRegistrationController extends Controller
                 'user_id' => $user->id,
                 'amount' => $session->price,
                 'payment_url' => $charge['payment_url'],
-                'qr_code_url' => $charge['qr_code'],
+                'qr_code_url' => $charge['qr_code'] ?? null,
                 'status' => 'pending'
             ]);
 
