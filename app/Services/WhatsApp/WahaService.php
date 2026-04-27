@@ -18,22 +18,26 @@ class WahaService
 
     public function send(string $to, string $message, string $session = 'default'): array
     {
-        // WAHA membutuhkan format nomor internasional tanpa '+' (misal: 62812...)
-        $cleanNumber = preg_replace('/[^0-9]/', '', $to);
+        // PENTING: Jangan paksa tambah @c.us jika tujuannya adalah @lid atau grup (@g.us)
+        if (str_contains($to, '@lid') || str_contains($to, '@g.us') || str_contains($to, '@c.us')) {
+            $chatId = $to; // Gunakan ID aslinya (Contoh: 155254964404264@lid)
+        } else {
+            $cleanNumber = preg_replace('/[^0-9]/', '', $to);
+            $chatId = "{$cleanNumber}@c.us";
+        }
 
         $response = Http::withHeaders([
             'X-Api-Key' => $this->apiKey,
             'Content-Type' => 'application/json',
         ])->post("{$this->baseUrl}/api/sendText", [
-            'chatId' => "{$cleanNumber}@c.us",
+            'chatId' => $chatId,
             'text' => $message,
-            'session' => $session, // Nama session yang kamu buat di Dashboard WAHA
+            'session' => $session,
         ]);
 
         if ($response->failed()) {
             throw new Exception("WAHA Error: " . $response->body());
         }
-
         return $response->json();
     }
 }

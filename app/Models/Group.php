@@ -39,4 +39,8 @@ class Group extends Model
     {
         return $this->belongsTo(Tenant::class);
     }
+    public function members()
+    {
+        return $this->hasMany(GroupMember::class, 'group_id');
+    }
 }

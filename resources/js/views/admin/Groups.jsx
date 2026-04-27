@@ -49,41 +49,60 @@ export default function AdminGroups() {
     const openModal = (mode, group = null) => {
         setModalMode(mode);
         if (mode === 'edit' && group) {
-            setFormData(group);
+            // Cek apakah olahraganya standar atau custom
+            const isStandard = ['Futsal', 'Minisoccer', 'Badminton'].includes(group.sport_type);
+            setFormData({
+                ...group, 
+                sport_type: isStandard ? group.sport_type : 'Lainnya'
+            });
+            setCustomSport(isStandard ? '' : group.sport_type);
         } else {
             setFormData({ id: null, name: '', sport_type: 'Futsal', description: '' });
+            setCustomSport('');
         }
         setIsModalOpen(true);
     };
 
-    // ACTION: POST & PUT
+
+    const [customSport, setCustomSport] = useState('');
+
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
 
+        // Siapkan data final, timpa sport_type jika "Lainnya" dipilih
+        const finalData = { ...formData };
+        if (finalData.sport_type === 'Lainnya') {
+            if (!customSport.trim()) {
+                MySwal.fire('Peringatan', 'Harap isi nama olahraga secara manual.', 'warning');
+                setIsSubmitting(false);
+                return;
+            }
+            finalData.sport_type = customSport;
+        }
+
         try {
             if (modalMode === 'add') {
-                await axios.post('/api/v1/admin/groups', formData);
+                await axios.post('/api/v1/admin/groups', finalData); // <-- Kirim finalData
                 Toast.fire({ icon: 'success', title: 'Grup berhasil ditambahkan!' });
             } else {
-                await axios.put(`/api/v1/admin/groups/${formData.id}`, formData);
+                await axios.put(`/api/v1/admin/groups/${formData.id}`, finalData); // <-- Kirim finalData
                 Toast.fire({ icon: 'success', title: 'Grup berhasil diperbarui!' });
             }
             
-            fetchGroups(); // Refresh tabel
+            fetchGroups();
             setIsModalOpen(false);
-        } catch (error) {
-            console.error(error);
-            MySwal.fire({
-                icon: 'error',
-                title: 'Gagal!',
-                text: error.response?.data?.message || 'Terjadi kesalahan sistem.',
-                confirmButtonColor: '#842A3B'
-            });
+        } 
+            catch (error) {
+            // INI PENUTUP YANG HILANG TADI
+            console.error("Error submitting form:", error);
+            MySwal.fire('Gagal', error.response?.data?.message || 'Terjadi kesalahan saat menyimpan data.', 'error');
         } finally {
             setIsSubmitting(false);
         }
     };
+  
+
 
     return (
         <div className="space-y-6 animate-fade-in relative">
@@ -172,9 +191,23 @@ export default function AdminGroups() {
                                     <option value="Futsal">Futsal</option>
                                     <option value="Minisoccer">Minisoccer</option>
                                     <option value="Badminton">Badminton</option>
+                                    <option value="Badminton">Padel</option>
                                     <option value="Lainnya">Lainnya</option>
                                 </select>
                             </div>
+                            {/* --- INPUT MUNCUL JIKA 'LAINNYA' DIPILIH --- */}
+                            {formData.sport_type === 'Lainnya' && (
+                                <div className="animate-fade-in mt-3">
+                                    <label className="block text-xs font-bold text-kas-primary uppercase tracking-wider mb-1">Ketik Nama Olahraga</label>
+                                    <input 
+                                        type="text" required
+                                        placeholder="Contoh: Tenis Meja"
+                                        value={customSport} onChange={(e) => setCustomSport(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border-2 border-kas-primary/20 focus:border-kas-primary outline-none bg-white"
+                                    />
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-semibold text-kas-dark mb-1">Deskripsi</label>
                                 <textarea 

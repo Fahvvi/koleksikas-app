@@ -44,6 +44,11 @@ class SendWaMemberConfirmJob implements ShouldQueue
                  . "📅 Tanggal: {$date}\n"
                  . "{$time}\n"
                  . "{$location}\n\n"
+                 // --- TAMBAHAN BARU ---
+                 . "🔒 *Akses Penuh KoleksiKas*\n"
+                 . "Ingin melihat jadwal mabar publik lainnya atau mengecek histori sesi kamu? "
+                 . "Yuk, aktifkan akunmu dengan membuat password di sini:\n"
+                 . env('APP_URL') . "/auth/set-password?phone=" . $user->phone_wa . "\n\n"
                  . "Terima kasih!\n_Pesan otomatis dari KoleksiKas_";
 
         try {

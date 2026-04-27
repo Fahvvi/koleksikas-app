@@ -35,7 +35,7 @@ import AdminDashboard from './views/admin/Dashboard.jsx';
 import AdminGroups from './views/admin/Groups.jsx';
 import GroupDetail from './views/admin/GroupDetail.jsx';
 // import AdminMembers from './views/admin/Members.jsx';
-// import AdminSessions from './views/admin/Sessions.jsx';
+import AdminSessions from './views/admin/Sessions.jsx';
 // import AdminBills from './views/admin/Bills.jsx';
 // import AdminTransactions from './views/admin/Transactions.jsx';
 // import AdminSettings from './views/admin/Settings.jsx'; // Konfigurasi Payment & WA
@@ -46,6 +46,7 @@ import GroupDetail from './views/admin/GroupDetail.jsx';
 // import UserDashboard from './views/user/Dashboard.jsx';
 // import UserBills from './views/user/Bills.jsx';
 // import UserPayment from './views/user/Payment.jsx';
+import UserProfile from './views/shared/Profile.jsx';
 
 function App() {
     return (
@@ -60,6 +61,9 @@ function App() {
 
                 {/* --- RUTE DASHBOARD (Dibungkus oleh Layout) --- */}
                 <Route element={<DashboardLayout />}>
+
+                    {/* AREA BERSAMA */}
+                    <Route path="/profile" element={<UserProfile />} />
                     
                     {/* AREA SUPER ADMIN */}
                     <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
@@ -75,7 +79,7 @@ function App() {
                     <Route path="/admin/groups" element={<AdminGroups />} />
                     <Route path="/admin/groups/:id" element={<GroupDetail />} />
                     {/* <Route path="/admin/groups/:id/members" element={<AdminMembers />} /> */}
-                    {/* <Route path="/admin/sessions" element={<AdminSessions />} /> */}
+                    <Route path="/admin/sessions" element={<AdminSessions />} />
                     {/* <Route path="/admin/bills" element={<AdminBills />} /> */}
                     {/* <Route path="/admin/transactions" element={<AdminTransactions />} /> */}
                     {/* <Route path="/admin/settings" element={<AdminSettings />} /> */}
@@ -88,6 +92,8 @@ function App() {
                     <Route path="/user/bills" element={<UserBills />} />
                     <Route path="/user/bills/:id/pay" element={<UserPayment />} />
                 </Route> */}
+
+                
 
                 {/* --- FALLBACK 404 --- */}
                 <Route path="*" element={

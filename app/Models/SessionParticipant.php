@@ -9,6 +9,8 @@ class SessionParticipant extends Model
 {
     use HasUuids;
 
+    // Tidak perlu mendefinisikan $table karena Laravel otomatis mencari 'session_participants'
+
     protected $fillable = [
         'id', 
         'session_id', 
@@ -17,14 +19,16 @@ class SessionParticipant extends Model
         'joined_at'
     ];
 
-    // --- Relasi ---
+    public $timestamps = true;
+
+    // --- RELASI ---
     public function session()
     {
-        return $this->belongsTo(Session::class);
+        return $this->belongsTo(Session::class, 'session_id');
     }
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

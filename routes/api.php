@@ -2,19 +2,24 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\Admin\GroupController;
 use App\Http\Controllers\MitraRegisterController;
 use App\Http\Controllers\SuperAdmin\MitraController as SuperAdminMitraController;
 use App\Http\Controllers\SuperAdmin\LicenseTierController as LicenseTierController;
 use App\Http\Controllers\SuperAdmin\SystemHealthController as SystemHealthController;
 use App\Http\Controllers\SuperAdmin\GlobalSettingController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
+use App\Http\Controllers\SuperAdmin\MitraController;
+use App\Http\Controllers\Auth\ProfileController;
+use App\Http\Middleware\EnsureTenantMiddleware;
+use App\Http\Controllers\Admin\GroupController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+
 
 Route::prefix('v1')->group(function () {
     
     // PUBLIC ROUTES
     Route::post('/auth/login', [AuthController::class, 'login']);
-    
+    Route::get('/sessions/{session}/join/{user}', [\App\Http\Controllers\Admin\SessionController::class, 'joinAndPay']);
     
     // Alur Mitra Baru (Sesuai routes.md)
     Route::post('/mitra/register', [MitraRegisterController::class, 'register']);
@@ -24,6 +29,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/sessions/{sessionId}/register', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'register']);
 
     // WEBHOOKS ROUTES
+    Route::post('/webhook/waha-receive', [\App\Http\Controllers\Webhook\WahaWebhookController::class, 'handle']);
     Route::post('/webhook/{provider}', [\App\Http\Controllers\Webhook\PaymentWebhookController::class, 'handle']);
 
 
@@ -33,16 +39,26 @@ Route::prefix('v1')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
 
+        // Rute Profil Umum (Bisa diakses Super Admin, Admin, & Member)
+            Route::get('/user/profile', [ProfileController::class, 'show']);
+            Route::put('/user/profile/basic', [ProfileController::class, 'updateBasic']);
+            Route::post('/user/otp/request', [ProfileController::class, 'requestOtp']);
+            Route::post('/user/otp/verify', [ProfileController::class, 'verifyOtp']);
         // SUPER ADMIN ROUTES
         // Menggunakan role middleware yang sudah kita buat sebelumnya
         Route::prefix('super-admin')->middleware('role:super_admin')->group(function () {
             Route::get('/overview', [DashboardController::class, 'index']);
             Route::get('/mitras', [SuperAdminMitraController::class, 'index']);
             Route::get('/mitras/pending', [SuperAdminMitraController::class, 'getPending']);
+            Route::post('/mitras', [MitraController::class, 'store']);
             Route::put('/mitras/{id}/approve', [SuperAdminMitraController::class, 'approve']);
             Route::put('/mitras/{id}/suspend', [SuperAdminMitraController::class, 'suspend']);
+            Route::put('/mitras/{id}/unblock', [SuperAdminMitraController::class, 'unblock']);
 
-
+            // MANAJEMEN PROFILE VIA SUPER ADMIN
+            Route::get('/mitras/{id}/manage', [\App\Http\Controllers\SuperAdmin\MitraController::class, 'getManageData']);
+            Route::put('/mitras/{id}/change-license', [\App\Http\Controllers\SuperAdmin\MitraController::class, 'changeLicense']);
+            Route::put('/users/{id}/force-update', [\App\Http\Controllers\SuperAdmin\MitraController::class, 'forceUpdateProfile']);
             // --- MANAJEMEN LICENSE TIERS ---
             Route::get('/license-tiers', [LicenseTierController::class, 'index']);      // List
             Route::post('/license-tiers', [LicenseTierController::class, 'store']);     // Tambah (POST)
@@ -62,15 +78,31 @@ Route::prefix('v1')->group(function () {
 
         // TENANT ADMIN ROUTES...
 
-        Route::prefix('admin')->middleware(['tenant', 'role:admin'])->group(function () {
+        Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin', EnsureTenantMiddleware::class])->group(function () {
             
+        // Dashboard Overview
+            Route::get('/overview', [AdminDashboardController::class, 'index']);
+        // --- MANAJEMEN GRUP ---
             Route::get('/groups', [GroupController::class, 'index']);        // Untuk list tabel
             Route::post('/groups', [GroupController::class, 'store']);       // Untuk tambah (Modal Add)
             Route::get('/groups/{id}', [GroupController::class, 'show']);    // Untuk halaman detail
             Route::put('/groups/{id}', [GroupController::class, 'update']);  // <-- INI YANG BIKIN ERROR 405 TADI
-         Route::delete('/groups/{id}', [GroupController::class, 'destroy']);
+            Route::delete('/groups/{id}', [GroupController::class, 'destroy']);
+
+            // --- Manajemen Detail Grup ----
+            Route::get('/groups/{id}/members', [GroupController::class, 'getMembers']);
+            Route::post('/groups/{id}/members', [GroupController::class, 'addMember']);
+            Route::put('/groups/{groupId}/members/{userId}', [GroupController::class, 'updateMember']);
+            Route::delete('/groups/{groupId}/members/{userId}', [GroupController::class, 'removeMember']);
             
-        });
+            // --- MANAJEMEN SESI (EVENT MAKER) ---
+            Route::get('/sessions', [\App\Http\Controllers\Admin\SessionController::class, 'index']);
+            Route::post('/sessions', [\App\Http\Controllers\Admin\SessionController::class, 'store']);
+            Route::get('/sessions/{id}', [\App\Http\Controllers\Admin\SessionController::class, 'show']);
+            Route::post('/sessions/{id}/broadcast', [\App\Http\Controllers\Admin\SessionController::class, 'broadcast']);
+            Route::delete('/sessions/{id}', [\App\Http\Controllers\Admin\SessionController::class, 'destroy']);
+        
+            });
         
         // USER / MEMBER ROUTES...
     });

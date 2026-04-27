@@ -19,6 +19,7 @@ return new class extends Migration
         $table->string('company_name')->nullable();
         $table->enum('status', ['pending', 'active', 'suspended'])->default('pending');
         $table->text('notes')->nullable();
+        $table->text('address')->nullable();
         $table->timestamp('approved_at')->nullable();
         // $table->foreignUuid('approved_by')->nullable()->constrained('users'); // Diaktifkan nanti jika tabel user sudah siap
         $table->timestamps();

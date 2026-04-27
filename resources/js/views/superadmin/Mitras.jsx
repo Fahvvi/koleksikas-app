@@ -10,6 +10,12 @@ const initialFormState = {
 };
 
 export default function SuperAdminMitras() {
+    // --- DIPINDAHKAN KE SINI (Harus di dalam fungsi komponen!) ---
+    const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+    const [manageData, setManageData] = useState({ mitra: null, users: [], current_license_id: '' });
+    const [adminForm, setAdminForm] = useState({ id: '', name: '', email: '', phone_wa: '', password: '' });
+    // -------------------------------------------------------------
+
     const [mitras, setMitras] = useState([]);
     const [tiers, setTiers] = useState([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
@@ -47,10 +53,74 @@ export default function SuperAdminMitras() {
         } catch (error) {
             console.error("Gagal mengambil data dari server:", error);
             setApiError(true);
-            setMitras([]); // TIDAK ADA LAGI DATA DUMMY!
+            setMitras([]);
             setTiers([]);
         } finally {
             setIsLoadingData(false);
+        }
+    };
+
+    const handleUnblock = (id, companyName) => {
+        MySwal.fire({
+            title: 'Aktifkan Kembali?',
+            text: `Akses untuk "${companyName}" akan dipulihkan.`,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Ya, Aktifkan!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    await axios.put(`/api/v1/super-admin/mitras/${id}/unblock`);
+                    Toast.fire({ icon: 'success', title: 'Mitra aktif kembali!' });
+                    fetchData();
+                } catch (error) {
+                    MySwal.fire('Gagal!', 'Terjadi kesalahan.', 'error');
+                }
+            }
+        });
+    };
+
+    const openManageModal = async (mitra) => {
+        try {
+            const res = await axios.get(`/api/v1/super-admin/mitras/${mitra.id}/manage`);
+            setManageData({ 
+                mitra: mitra, 
+                users: res.data.users, 
+                current_license_id: res.data.current_license_id || '' 
+            });
+            // Set form dengan data admin pertama (asumsi 1 mitra punya 1 admin utama)
+            if (res.data.users.length > 0) {
+                const admin = res.data.users[0];
+                setAdminForm({ id: admin.id, name: admin.name, email: admin.email, phone_wa: admin.phone_wa || '', password: '' });
+            }
+            setIsManageModalOpen(true);
+        } catch (error) {
+            Toast.fire({ icon: 'error', title: 'Gagal mengambil data akun.' });
+        }
+    };
+
+    // Eksekusi Ganti Paket
+    const handleUpdateLicense = async () => {
+        try {
+            await axios.put(`/api/v1/super-admin/mitras/${manageData.mitra.id}/change-license`, { license_tier_id: manageData.current_license_id });
+            Toast.fire({ icon: 'success', title: 'Paket berhasil diubah!' });
+            fetchData(); // Refresh tabel belakang
+        } catch (error) {
+            MySwal.fire('Gagal', 'Tidak dapat mengubah paket.', 'error');
+        }
+    };
+
+    // Eksekusi Force Update Profil
+    const handleForceUpdateUser = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.put(`/api/v1/super-admin/users/${adminForm.id}/force-update`, adminForm);
+            Toast.fire({ icon: 'success', title: 'Data Admin berhasil diupdate paksa!' });
+            setIsManageModalOpen(false);
+            fetchData(); // <-- INI PERBAIKANNYA, BIAR TABEL REFRESH SETELAH UPDATE
+        } catch (error) {
+            MySwal.fire('Gagal', error.response?.data?.message || 'Terjadi kesalahan validasi.', 'error');
         }
     };
 
@@ -104,7 +174,7 @@ export default function SuperAdminMitras() {
             text: `Akses untuk "${companyName}" akan diblokir. Apakah kamu yakin?`,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444', // Merah danger
+            confirmButtonColor: '#ef4444', 
             cancelButtonText: '<span style="color: black">Batal</span>',
             confirmButtonText: 'Ya, Nonaktifkan!'
         }).then(async (result) => {
@@ -255,6 +325,13 @@ export default function SuperAdminMitras() {
                                             <button onClick={() => openModal('detail', mitra)} className="px-3 py-1.5 text-kas-primary hover:bg-kas-primary/10 rounded-lg font-bold text-sm transition-all">
                                                 Detail
                                             </button>
+
+                                            {/* --- TOMBOL GOD MODE DITAMBAHKAN DI SINI --- */}
+                                            {mitra.status === 'active' && (
+                                                <button onClick={() => openManageModal(mitra)} className="px-3 py-1.5 bg-kas-dark text-white hover:bg-black rounded-lg font-bold text-sm transition-all shadow-md">
+                                                    Kelola
+                                                </button>
+                                            )}
                                             
                                             {/* Tombol Approve (Hanya untuk Pending) */}
                                             {mitra.status === 'pending' && (
@@ -266,7 +343,13 @@ export default function SuperAdminMitras() {
                                             {/* Tombol Suspend (Hanya untuk Aktif) */}
                                             {mitra.status === 'active' && (
                                                 <button onClick={() => handleSuspend(mitra.id, mitra.company_name)} className="px-3 py-1.5 text-red-500 hover:bg-red-50 border border-red-200 rounded-lg font-bold text-sm transition-all">
-                                                    ✕ Blokir
+                                                    ✕
+                                                </button>
+                                            )}
+
+                                            {mitra.status === 'suspended' && (
+                                                <button onClick={() => handleUnblock(mitra.id, mitra.company_name)} className="px-3 py-1.5 text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg font-bold text-sm transition-all">
+                                                    🔓 Unblock
                                                 </button>
                                             )}
                                         </div>
@@ -277,6 +360,17 @@ export default function SuperAdminMitras() {
                     </table>
                 </div>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-6">
+                    <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 bg-white border border-gray-200 rounded-xl disabled:opacity-50 font-bold text-sm">Prev</button>
+                    <span className="text-sm font-bold text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200">
+                        Halaman {currentPage} dari {totalPages}
+                    </span>
+                    <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 bg-white border border-gray-200 rounded-xl disabled:opacity-50 font-bold text-sm">Next</button>
+                </div>
+            )}
 
             {/* --- MODAL (TAMBAH / DETAIL) --- */}
             {isModalOpen && (
@@ -307,7 +401,16 @@ export default function SuperAdminMitras() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1">No. WhatsApp</label>
-                                    <input type="text" value={formData.phone || ''} onChange={(e) => setFormData({...formData, phone: e.target.value})} disabled={modalMode === 'detail'} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-kas-primary bg-kas-bg/30 text-sm disabled:opacity-70" required />
+                                    <input 
+                                        type="text" 
+                                        value={formData.phone || ''} 
+                                        onChange={(e) => setFormData({...formData, phone: e.target.value})} 
+                                        disabled={modalMode === 'detail'} 
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-kas-primary bg-kas-bg/30 text-sm disabled:opacity-70" 
+                                        required 
+                                        placeholder="Cth: 08123 atau 62812 (tanpa -)" 
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1">Format 08 atau 62 akan disesuaikan otomatis.</p>
                                 </div>
                             </div>
 
@@ -319,6 +422,16 @@ export default function SuperAdminMitras() {
                                             <option value="" disabled>-- Pilih Paket --</option>
                                             {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                         </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Alamat Lengkap</label>
+                                        <textarea 
+                                            value={formData.address || ''} 
+                                            onChange={(e) => setFormData({...formData, address: e.target.value})}
+                                            className="w-full px-4 py-2 rounded-xl border border-gray-200 outline-none focus:border-kas-primary bg-kas-bg/30 text-sm"
+                                            rows="2"
+                                            placeholder="Alamat Gor / Bisnis..."
+                                        ></textarea>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">Password Awal (Untuk Login)</label>
@@ -353,6 +466,82 @@ export default function SuperAdminMitras() {
                                 )}
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL GOD MODE (MANAGE AKUN & PAKET) --- */}
+            {isManageModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-kas-dark/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                        
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-kas-dark text-white">
+                            <div>
+                                <h3 className="text-xl font-black">⚡ Mitra: {manageData.mitra?.company_name}</h3>
+                                <p className="text-xs text-gray-300 mt-1">Super Admin Override (Tanpa OTP)</p>
+                            </div>
+                            <button onClick={() => setIsManageModalOpen(false)} className="text-white hover:text-red-400 text-2xl font-bold">✕</button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-8">
+                            
+                            {/* SECTION 1: GANTI PAKET */}
+                            <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl">
+                                <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">💎 Ganti Paket Lisensi</h4>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <select 
+                                        value={manageData.current_license_id} 
+                                        onChange={(e) => setManageData({...manageData, current_license_id: e.target.value})}
+                                        className="flex-1 px-4 py-2 rounded-xl border border-blue-200 outline-none font-bold text-sm bg-white"
+                                    >
+                                        <option value="">Pilih Paket...</option>
+                                        {tiers.map(tier => (
+                                            <option key={tier.id} value={tier.id}>{tier.name} (Rp {tier.price})</option>
+                                        ))}
+                                    </select>
+                                    <button onClick={handleUpdateLicense} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md transition-all">
+                                        Update Paket
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* SECTION 2: FORCE UPDATE AKUN ADMIN */}
+                            <form onSubmit={handleForceUpdateUser} className="space-y-4">
+                                <h4 className="font-bold text-kas-dark border-b pb-2">👤 Update Akun Admin Utama</h4>
+                                
+                                {adminForm.id === '' ? (
+                                    <p className="text-sm text-red-500 italic">Belum ada akun Admin terdaftar untuk mitra ini.</p>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">Nama Lengkap</label>
+                                                <input type="text" value={adminForm.name} onChange={e => setAdminForm({...adminForm, name: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-kas-bg/50 outline-none focus:border-kas-primary text-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">Email Login</label>
+                                                <input type="email" value={adminForm.email} onChange={e => setAdminForm({...adminForm, email: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-kas-bg/50 outline-none focus:border-kas-primary text-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1">Nomor WhatsApp</label>
+                                                <input type="text" value={adminForm.phone_wa} onChange={e => setAdminForm({...adminForm, phone_wa: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-kas-bg/50 outline-none focus:border-kas-primary text-sm" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-red-500 mb-1">Reset Password (Opsional)</label>
+                                                <input type="text" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} placeholder="Kosongkan jika tidak diganti" className="w-full px-4 py-2 rounded-xl border border-red-200 bg-red-50 outline-none focus:border-red-500 text-sm" />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 flex justify-end">
+                                            <button type="submit" className="px-6 py-3 bg-kas-primary hover:bg-kas-dark text-white rounded-xl font-bold shadow-lg transition-all">
+                                                💾 Simpan Perubahan Akun
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </form>
+
+                        </div>
                     </div>
                 </div>
             )}

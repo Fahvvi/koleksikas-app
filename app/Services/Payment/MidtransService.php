@@ -16,7 +16,7 @@ class MidtransService implements PaymentInterface
         // Logika hit API Midtrans untuk generate QRIS
         // Return format yang seragam: [payment_url, qr_code, transaction_id]
         return [
-            'transaction_id' => 'PKSR-' . uniqid(),
+            'transaction_id' => 'MDTR-' . uniqid(),
             'payment_url' => '...', 
             'qr_code' => '...'
         ];
