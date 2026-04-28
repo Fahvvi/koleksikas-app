@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Webhook;
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\SessionParticipant;
-use App\Models\SystemLog; // <-- IMPORT MODEL SYSTEM LOG
+use App\Models\SystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -15,43 +15,29 @@ class PaymentWebhookController extends Controller
 {
     public function handle(Request $request, $provider)
     {
-        // [LOG 1 - INFO]: Catat setiap ada ketukan pintu dari pihak luar
         SystemLog::create([
             'level' => 'info',
             'service' => 'payment',
-            'message' => "Menerima Webhook masuk dari provider: {$provider}",
-            'context' => [
-                'ip_address' => $request->ip(),
-                'payload' => $request->all() // Simpan seluruh data untuk keperluan audit jika ada dispute
-            ]
+            'message' => "Menerima Webhook masuk dari provider: {$provider}"
         ]);
 
         try {
-            // 1. Tangkap ID Transaksi dari payload
+            // 1. Tangkap ID Transaksi
             $orderId = $request->input('order_id') ?? $request->input('transaction_id');
 
-            if (!$orderId) {
-                // [LOG 2 - WARNING]: Webhook aneh tanpa ID
-                SystemLog::create([
-                    'level' => 'warning',
-                    'service' => 'payment',
-                    'message' => "Webhook {$provider} ditolak: Payload tidak memiliki Order ID.",
-                    'context' => ['payload' => $request->all()]
-                ]);
-                return response()->json(['message' => 'Order ID tidak ditemukan'], 400);
+            if (!$orderId || !\Illuminate\Support\Str::isUuid($orderId)) {
+                return response()->json(['message' => 'Format ID tidak didukung/Kosong'], 200);
             }
 
             // 2. Cari transaksi beserta relasinya
-            $transaction = Transaction::with(['tenant.paymentConfig', 'billItem.bill.session', 'user'])
+            $transaction = Transaction::with(['tenant', 'billItem.bill.session', 'user'])
                 ->where('id', $orderId) 
                 ->first();
 
             if (!$transaction) {
-                // [LOG 3 - WARNING]: Transaksi tidak ada di DB (Bisa jadi ada delay koneksi atau salah DB)
                 SystemLog::create([
-                    'level' => 'warning',
-                    'service' => 'payment',
-                    'message' => "Webhook {$provider} ditolak: Transaksi ID {$orderId} tidak ditemukan di database.",
+                    'level' => 'warning', 'service' => 'payment',
+                    'message' => "Webhook {$provider} ditolak: Transaksi ID {$orderId} tidak ditemukan.",
                 ]);
                 return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
             }
@@ -60,61 +46,51 @@ class PaymentWebhookController extends Controller
                 return response()->json(['message' => 'Transaksi sudah diproses sebelumnya'], 200);
             }
 
-            // 3. Verifikasi Signature (Keamanan)
-            $config = $transaction->tenant->paymentConfig;
-            $paymentService = $this->getPaymentService($config);
+            // 3. RESOLUSI CONFIG & VERIFIKASI KEAMANAN (PRODUCTION READY 🛡️)
+            $config = $this->resolvePaymentConfig($transaction->tenant_id);
             
+            if (!$config) {
+                return response()->json(['message' => 'Konfigurasi Gateway tidak ditemukan'], 500);
+            }
+
+            $paymentService = $this->getPaymentService($config);
             $signature = $request->header('X-Callback-Signature') ?? $request->header('X-Signature');
 
-            // [PERHATIAN]: Kalau sudah Production, BUKA COMMENT INI!
-            // if (!$paymentService->verifyWebhook($request->all(), $signature)) {
-            //     // [LOG 4 - CRITICAL]: Potensi Hacking / Pemalsuan Pembayaran!
-            //     SystemLog::create([
-            //         'level' => 'critical',
-            //         'service' => 'payment',
-            //         'message' => "Peringatan FRAUD! Invalid Signature dari Webhook {$provider}.",
-            //         'context' => [
-            //             'ip_address' => $request->ip(),
-            //             'transaction_id' => $orderId,
-            //             'signature_received' => $signature
-            //         ]
-            //     ]);
-            //     return response()->json(['message' => 'Invalid Signature! Akses ditolak.'], 403);
-            // }
+            // BLOK KEAMANAN DIBUKA! 
+            // Jika provider adalah Pakasir, ini akan menembak balik API Pakasir untuk double-check!
+            if (!$paymentService->verifyWebhook($request->all(), $signature)) {
+                SystemLog::create([
+                    'level' => 'critical', 'service' => 'payment',
+                    'message' => "Peringatan FRAUD! Invalid Signature/Status dari Webhook {$provider}.",
+                    'context' => [
+                        'ip_address' => $request->ip(),
+                        'transaction_id' => $orderId
+                    ]
+                ]);
+                return response()->json(['message' => 'Invalid Signature! Akses ditolak.'], 403);
+            }
 
             // 4. Proses Pembayaran Berhasil
             $transactionStatus = $request->input('transaction_status') ?? $request->input('status');
 
-            if (in_array($transactionStatus, ['settlement', 'capture', 'paid', 'success'])) {
+            if (in_array($transactionStatus, ['settlement', 'capture', 'paid', 'completed', 'success'])) {
                 
                 DB::transaction(function () use ($transaction, $request) {
-                    // A. Update Transaksi
                     $transaction->update([
                         'status' => 'success',
                         'paid_at' => now(),
                         'gateway_transaction_id' => $request->input('gateway_transaction_id')
                     ]);
 
-                    // B. Update Bill Item
                     if ($transaction->billItem) {
-                        $transaction->billItem->update([
-                            'status' => 'paid',
-                            'paid_at' => now()
-                        ]);
+                        $transaction->billItem->update(['status' => 'paid', 'paid_at' => now()]);
                     }
 
-                    // C. Logika "Open Play"
                     $bill = $transaction->billItem->bill ?? null;
                     if ($bill && $bill->session_id) {
                         SessionParticipant::updateOrCreate(
-                            [
-                                'session_id' => $bill->session_id,
-                                'user_id' => $transaction->user_id,
-                            ],
-                            [
-                                'id' => (string) Str::uuid(),
-                                'status' => 'confirmed'
-                            ]
+                            ['session_id' => $bill->session_id, 'user_id' => $transaction->user_id],
+                            ['id' => (string) Str::uuid(), 'status' => 'confirmed']
                         );
                     }
                 });
@@ -122,10 +98,8 @@ class PaymentWebhookController extends Controller
                 // 5. Trigger Notifikasi WhatsApp
                 SendWaMemberConfirmJob::dispatch($transaction);
 
-                // [LOG 5 - INFO]: Pembayaran Sukses Diproses
                 SystemLog::create([
-                    'level' => 'info',
-                    'service' => 'payment',
+                    'level' => 'info', 'service' => 'payment',
                     'message' => "Pembayaran Sukses: Transaksi {$orderId} via {$provider} telah diproses.",
                 ]);
 
@@ -135,33 +109,36 @@ class PaymentWebhookController extends Controller
             // Handle status lain (Expired / Failed)
             if (in_array($transactionStatus, ['expire', 'cancel', 'deny', 'failed'])) {
                 $transaction->update(['status' => 'failed']);
-                
-                SystemLog::create([
-                    'level' => 'info',
-                    'service' => 'payment',
-                    'message' => "Pembayaran Gagal/Expired: Transaksi {$orderId} dibatalkan.",
-                ]);
-
                 return response()->json(['message' => 'Transaksi dibatalkan/kadaluarsa'], 200);
             }
 
             return response()->json(['message' => 'Status tidak dikenali'], 400);
 
         } catch (\Exception $e) {
-            // [LOG 6 - CRITICAL]: Tangkap error kodingan / database mati di tengah proses
             SystemLog::create([
-                'level' => 'critical',
-                'service' => 'payment',
-                'message' => "FATAL ERROR saat memproses Webhook {$provider}: " . $e->getMessage(),
-                'context' => [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'order_id' => $orderId ?? 'unknown'
-                ]
+                'level' => 'critical', 'service' => 'payment',
+                'message' => "FATAL ERROR saat memproses Webhook {$provider}: " . $e->getMessage()
             ]);
-
             return response()->json(['message' => 'Terjadi kesalahan internal server'], 500);
         }
+    }
+
+    // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
+    private function resolvePaymentConfig($tenantId)
+    {
+        $config = \App\Models\PaymentConfig::where('tenant_id', $tenantId)->where('is_active', true)->first();
+        if ($config) return $config;
+
+        $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
+        $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
+
+        if ($globalProject && $globalApiKey) {
+            return (object) [
+                'provider' => 'pakasir',
+                'payload' => json_encode(['project' => $globalProject->value, 'api_key' => $globalApiKey->value])
+            ];
+        }
+        return null;
     }
 
     private function getPaymentService($config) {

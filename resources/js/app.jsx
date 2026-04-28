@@ -11,6 +11,9 @@ import LandingPage from './views/public/LandingPage.jsx';
 import RegisterSession from './views/public/RegisterSession.jsx';
 import MitraRegister from './views/public/MitraRegister.jsx';
 import Login from './views/auth/Login.jsx';
+import PaymentSuccess from './views/public/PaymentSuccess';
+import SetPassword from './views/auth/SetPassword';
+import Checkout from './views/public/Checkout.jsx';
 
 // ==========================================
 // 2. IMPORT LAYOUTS
@@ -36,9 +39,9 @@ import AdminGroups from './views/admin/Groups.jsx';
 import GroupDetail from './views/admin/GroupDetail.jsx';
 // import AdminMembers from './views/admin/Members.jsx';
 import AdminSessions from './views/admin/Sessions.jsx';
-// import AdminBills from './views/admin/Bills.jsx';
+import AdminBilling from './views/admin/Billing.jsx';
 // import AdminTransactions from './views/admin/Transactions.jsx';
-// import AdminSettings from './views/admin/Settings.jsx'; // Konfigurasi Payment & WA
+import AdminSettings from './views/admin/Settings.jsx'; // Konfigurasi Payment & WA
 
 // ==========================================
 // 5. IMPORT USER (MEMBER) VIEWS
@@ -58,7 +61,9 @@ function App() {
                 <Route path="/sesi/:sessionId/daftar" element={<RegisterSession />} />
                 <Route path="/mitra/register" element={<MitraRegister />} />
                 <Route path="/auth/login" element={<Login />} />
-
+                <Route path="/payment/success" element={<PaymentSuccess />} />
+                <Route path="/auth/set-password" element={<SetPassword />} />
+                <Route path="/checkout/:sessionId/:userId" element={<Checkout />} />
                 {/* --- RUTE DASHBOARD (Dibungkus oleh Layout) --- */}
                 <Route element={<DashboardLayout />}>
 
@@ -80,9 +85,9 @@ function App() {
                     <Route path="/admin/groups/:id" element={<GroupDetail />} />
                     {/* <Route path="/admin/groups/:id/members" element={<AdminMembers />} /> */}
                     <Route path="/admin/sessions" element={<AdminSessions />} />
-                    {/* <Route path="/admin/bills" element={<AdminBills />} /> */}
+                    <Route path="/admin/billing" element={<AdminBilling />} />
                     {/* <Route path="/admin/transactions" element={<AdminTransactions />} /> */}
-                    {/* <Route path="/admin/settings" element={<AdminSettings />} /> */}
+                    <Route path="/admin/settings" element={<AdminSettings />} />
 
                 </Route>
 

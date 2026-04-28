@@ -58,4 +58,26 @@ class AuthController extends Controller
             'message' => 'Berhasil logout'
         ]);
     }
+
+        public function setPassword(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $user = User::where('phone_wa', $request->phone)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'User tidak ditemukan'], 404);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json(['message' => 'Password berhasil dibuat. Silakan login!']);
+    }
+
+
 }

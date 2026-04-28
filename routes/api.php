@@ -20,7 +20,8 @@ Route::prefix('v1')->group(function () {
     // PUBLIC ROUTES
     Route::post('/auth/login', [AuthController::class, 'login']);
     Route::get('/sessions/{session}/join/{user}', [\App\Http\Controllers\Admin\SessionController::class, 'joinAndPay']);
-    
+    Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
+    Route::get('/sessions/{sessionId}/qris', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'getQris']);
     // Alur Mitra Baru (Sesuai routes.md)
     Route::post('/mitra/register', [MitraRegisterController::class, 'register']);
     Route::post('/mitra/activate', [MitraRegisterController::class, 'activate']);
@@ -101,8 +102,16 @@ Route::prefix('v1')->group(function () {
             Route::get('/sessions/{id}', [\App\Http\Controllers\Admin\SessionController::class, 'show']);
             Route::post('/sessions/{id}/broadcast', [\App\Http\Controllers\Admin\SessionController::class, 'broadcast']);
             Route::delete('/sessions/{id}', [\App\Http\Controllers\Admin\SessionController::class, 'destroy']);
-        
+            Route::post('/sessions/{session}/remind', [\App\Http\Controllers\Admin\SessionController::class, 'remind']);
+
+            // --- MANAJEMEN TAGIHAN ---
+            Route::get('/bills', [\App\Http\Controllers\Admin\BillController::class, 'index']);
             });
+            
+            // --- PENGATURAN MITRA ---
+            Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index']);
+            Route::post('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update']);
+
         
         // USER / MEMBER ROUTES...
     });

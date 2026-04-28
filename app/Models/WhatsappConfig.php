@@ -13,4 +13,9 @@ class WhatsappConfig extends Model
     protected $fillable = [
         'id', 'tenant_id', 'provider', 'api_token', 'device_number', 'is_active', 'daily_limit'
     ];
+
+    protected $casts = [
+        'settings' => 'array',
+        'is_active' => 'boolean',
+    ];
 }

@@ -15,7 +15,8 @@ export default function SuperAdminGlobalSettings() {
         app_name: 'KoleksiKas',
         platform_fee: 0,
         maintenance_mode: 'false',
-        pakasir_secret_key: '',
+        pakasir_project: '', // <-- Tambahan Baru
+        pakasir_api_key: '',
         pakasir_endpoint: 'https://api.pakasir.com/v1',
         waha_endpoint: 'http://localhost:3000',
         waha_default_session: 'default',
@@ -135,16 +136,18 @@ export default function SuperAdminGlobalSettings() {
                         {activeTab === 'payment' && (
                             <div className="space-y-6 animate-slide-up">
                                 <h3 className="text-xl font-black text-kas-dark border-b border-gray-100 pb-2">Pakasir Integration</h3>
-                                <p className="text-sm text-gray-500">Konfigurasi utama API Gateway untuk proses Settlement & Payout.</p>
-
+                                <p className="text-sm text-gray-500">Konfigurasi utama API Gateway untuk proses Tagihan & Pembayaran.</p>
+                                
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Pakasir Endpoint URL</label>
-                                    <input type="url" name="pakasir_endpoint" value={settings.pakasir_endpoint} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-kas-primary transition-all bg-kas-bg/30 text-sm font-mono" />
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Pakasir Project Slug</label>
+                                    <p className="text-xs text-gray-500 mb-2">Diambil dari URL project Pakasir kamu (contoh: koleksikas).</p>
+                                    <input type="text" name="pakasir_project" value={settings.pakasir_project || ''} onChange={handleChange} placeholder="Masukkan slug proyek" className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-kas-primary transition-all bg-kas-bg/30 text-sm font-mono" />
                                 </div>
                                 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Global Secret Key</label>
-                                    <input type="password" name="pakasir_secret_key" value={settings.pakasir_secret_key} onChange={handleChange} placeholder="pk_live_xxxx..." className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-kas-primary transition-all bg-kas-bg/30 text-sm font-mono" />
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Pakasir API Key</label>
+                                    <p className="text-xs text-gray-500 mb-2">Dapatkan dari menu Detail Proyek di Dashboard Pakasir.</p>
+                                    <input type="password" name="pakasir_api_key" value={settings.pakasir_api_key || ''} onChange={handleChange} placeholder="xxx123..." className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none focus:border-kas-primary transition-all bg-kas-bg/30 text-sm font-mono" />
                                 </div>
                             </div>
                         )}

@@ -3,38 +3,77 @@
 namespace App\Services\Payment;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class PakasirService implements PaymentInterface
 {
     protected $config;
 
     public function __construct($config) {
-        $this->config = $config; // Data dari tabel payment_configs
+        // Konversi string JSON ke Object
+        $this->config = is_string($config) ? json_decode($config) : (object) $config; 
     }
 
-    public function createCharge(array $params): array {
-        // Logika hit API Pakasir untuk generate QRIS
-        // Return format yang seragam: [payment_url, qr_code, transaction_id]
+   public function createCharge(array $params): array {
+        $config = is_string($this->config) ? json_decode($this->config) : (object) $this->config;
+        
+        $projectSlug = $config->project ?? '';
+        $apiKey = $config->api_key ?? ''; // Kita butuh API Key untuk metode POST
+        
+        $orderId = $params['transaction_id'];
+        $amount = (int) $params['amount'];
+
+        // Tembak API Pakasir (Opsi C - Transaction Create API)
+        $response = Http::post('https://app.pakasir.com/api/transactioncreate/qris', [
+            'project' => $projectSlug,
+            'order_id' => $orderId,
+            'amount' => $amount,
+            'api_key' => $apiKey
+        ]);
+
+        if ($response->failed()) {
+            throw new \Exception("Gagal mengambil QRIS dari Pakasir.");
+        }
+
+        $data = $response->json();
+
         return [
-            'transaction_id' => 'PKSR-' . uniqid(),
-            'payment_url' => '...', 
-            'qr_code' => '...'
+            'transaction_id' => $orderId,
+            'payment_url' => '', // Kita tidak butuh redirect URL lagi
+            'qr_code' => $data['payment']['payment_number'] ?? '' // INI ADALAH STRING QRIS MENTAH!
         ];
     }
 
+    // Untuk fungsi Webhook, Pakasir tidak memakai Signature. 
+    // Jadi kita verifikasi dengan menembak balik API mereka (Opsi E)
     public function verifyWebhook(array $payload, ?string $signature): bool 
     {
-        if (!$signature) return false;
-
-        // Ambil secret key milik admin yang tersimpan di DB
-        $secretKey = json_decode($this->config)->secret_key; 
+        $projectSlug = $this->config->project ?? '';
+        $apiKey = $this->config->api_key ?? '';
         
-        // Buat string dari payload sesuai aturan Pakasir (misal: JSON stringified)
-        $payloadString = json_encode($payload);
+        $orderId = $payload['order_id'] ?? '';
+        $amount = $payload['amount'] ?? '';
 
-        // Hasilkan hash dan bandingkan
-        $expectedSignature = hash_hmac('sha256', $payloadString, $secretKey);
+        if (!$orderId || !$amount) return false;
 
-        return hash_equals($expectedSignature, $signature);
+        try {
+            // Tanya ke server Pakasir: "Apakah transaksi ini beneran lunas?"
+            $response = Http::get("https://app.pakasir.com/api/transactiondetail", [
+                'project' => $projectSlug,
+                'amount' => $amount,
+                'order_id' => $orderId,
+                'api_key' => $apiKey
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                // Validasi jika statusnya benar-benar completed
+                return isset($data['transaction']['status']) && $data['transaction']['status'] === 'completed';
+            }
+        } catch (\Exception $e) {
+            Log::error("Pakasir Webhook Verification Error: " . $e->getMessage());
+        }
+
+        return false;
     }
 }

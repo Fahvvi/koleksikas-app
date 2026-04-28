@@ -21,27 +21,25 @@ class GlobalSettingController extends Controller
     // Menyimpan banyak setting sekaligus
     public function update(Request $request)
     {
-        // Data yang dikirim dari React bentuknya array/object
-        $settings = $request->except('_token');
+        // Daftarkan 'pakasir_project' dan 'pakasir_api_key' agar tidak diblokir oleh sistem
+        $settings = $request->only([
+            'app_name', 
+            'platform_fee', 
+            'maintenance_mode', 
+            'pakasir_endpoint', 
+            'pakasir_project',  // <-- Wajib Ada
+            'pakasir_api_key',  // <-- Wajib Ada
+            'waha_endpoint', 
+            'waha_default_session'
+        ]);
 
         foreach ($settings as $key => $value) {
-            GlobalSetting::updateOrCreate(
-                ['key' => $key], // Cari berdasarkan key
-                ['value' => $value] // Update nilainya
+            \App\Models\GlobalSetting::updateOrCreate(
+                ['key' => $key],
+                ['value' => $value]
             );
         }
 
-        // [LOG INFO]: Catat bahwa Super Admin merubah setting!
-        \App\Models\SystemLog::create([
-            'level' => 'info',
-            'service' => 'system',
-            'message' => 'Super Admin mengubah Pengaturan Global.',
-            'context' => ['updated_keys' => array_keys($settings)]
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Pengaturan berhasil diperbarui'
-        ]);
+        return response()->json(['message' => 'Konfigurasi Global berhasil diperbarui']);
     }
 }
