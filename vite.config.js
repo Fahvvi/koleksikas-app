@@ -12,4 +12,16 @@ export default defineConfig({
         react(),
         tailwindcss(), // Panggil Tailwind di sini
     ],
+    
+
+//     server: {
+//     // Izinkan semua host (termasuk ngrok)
+//     host: '0.0.0.0', 
+//     hmr: {
+//       // Pastikan HMR menggunakan protokol HTTPS
+//       protocol: 'wss',
+//       host: 'lemonlike-onomatologically-evie.ngrok-free.dev',
+//     },
+//     cors: true,
+// },
 });

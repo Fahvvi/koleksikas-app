@@ -205,9 +205,10 @@ class SessionController extends Controller
                     ->where('is_active', true)
                     ->first();
 
-        if ($config) {
-            \Illuminate\Support\Facades\Log::info("Menggunakan Payment Config LOKAL untuk Tenant: {$tenantId}");
-            return $config;
+        // Jika kosong atau slug-nya belum diisi, ambil config pusat (Global)
+        if (!$config || empty(json_decode($config->payload)->project)) {
+            $config = \App\Models\PaymentConfig::whereNull('tenant_id')->first(); 
+            $isHeldByPlatform = true; // Tandai bahwa dana masuk ke kita
         }
 
         // 2. Jika tenant tidak punya, ambil dari Global Settings Super Admin
@@ -270,8 +271,9 @@ public function joinAndPay($sessionId, $userId)
         $billItem = \App\Models\BillItem::firstOrCreate(
             ['bill_id' => $bill->id, 'user_id' => $user->id],
             ['id' => \Illuminate\Support\Str::uuid(), 'amount' => $totalAmount, 'status' => 'pending']
+        ); 
         
-            ); if ($billItem->status === 'paid') {
+        if ($billItem->status === 'paid') {
             return response()->json([
                 'already_paid' => true, 
                 'message' => 'Tagihan ini sudah lunas.'

@@ -41,6 +41,7 @@ export default function DashboardLayout() {
         { name: 'Sesi', path: '/admin/sessions'},
         { name: 'Tagihan (Bills)', path: '/admin/billing' }, //, icon: '💸'
         { name: 'Member Group', path: '/admin/groups' }, //, icon: '👥'
+        { name: 'Finance & Transaksi', path: '/admin/finance'}, //, icon: '💰'
         { name: 'Pengaturan', path: '/admin/settings'}, //, icon: '🤖' 
     ];
 

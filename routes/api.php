@@ -106,12 +106,18 @@ Route::prefix('v1')->group(function () {
 
             // --- MANAJEMEN TAGIHAN ---
             Route::get('/bills', [\App\Http\Controllers\Admin\BillController::class, 'index']);
-            });
-            
+
             // --- PENGATURAN MITRA ---
             Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index']);
             Route::post('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update']);
+            
 
+            // --- KEUANGAN & PENCAIRAN ---
+            Route::get('/finance', [\App\Http\Controllers\Admin\FinanceController::class, 'index']);
+            Route::post('/finance/payout', [\App\Http\Controllers\Admin\FinanceController::class, 'requestPayout']);
+        });
+            
+            
         
         // USER / MEMBER ROUTES...
     });

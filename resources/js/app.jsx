@@ -42,7 +42,7 @@ import AdminSessions from './views/admin/Sessions.jsx';
 import AdminBilling from './views/admin/Billing.jsx';
 // import AdminTransactions from './views/admin/Transactions.jsx';
 import AdminSettings from './views/admin/Settings.jsx'; // Konfigurasi Payment & WA
-
+import AdminFinance from './views/admin/Finance.jsx'; // Laporan Keuangan & Transaksi
 // ==========================================
 // 5. IMPORT USER (MEMBER) VIEWS
 // ==========================================
@@ -88,7 +88,7 @@ function App() {
                     <Route path="/admin/billing" element={<AdminBilling />} />
                     {/* <Route path="/admin/transactions" element={<AdminTransactions />} /> */}
                     <Route path="/admin/settings" element={<AdminSettings />} />
-
+                    <Route path="/admin/finance" element={<AdminFinance />} />
                 </Route>
 
                 {/* --- RUTE AREA MEMBER / USER (Nanti dibungkus UserLayout) --- */}

@@ -14,9 +14,10 @@ return new class extends Migration
     Schema::create('whatsapp_configs', function (Blueprint $table) {
         $table->uuid('id')->primary();
         $table->foreignUuid('tenant_id')->constrained('tenants')->cascadeOnDelete();
-        $table->string('provider')->default('fonnte');
-        $table->text('api_token'); // Token Fonnte Admin
+        $table->string('provider')->default('waha');
+        $table->text('api_token')->nullable(); // Token Fonnte Admin
         $table->string('device_number')->nullable();
+        $table->json('settings')->nullable();
         $table->boolean('is_active')->default(true);
         $table->integer('daily_limit')->default(200);
         $table->timestamps();
