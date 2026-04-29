@@ -12,54 +12,93 @@ class FinanceController extends Controller
 {
     // 1. GET DATA DASHBOARD KEUANGAN
     public function index(Request $request)
-    {
-        $tenantId = $request->user()->tenant_id;
+{
+    $tenantId = $request->user()->tenant_id;
 
-        // A. Hitung Total Pendapatan Kotor dari Gateway KoleksiKAS (Asumsi transaksi yang masuk ke platform)
-        // Nanti sesuaikan query ini jika kamu punya penanda khusus (misal kolom 'is_platform_held')
-        $totalRevenue = Transaction::where('tenant_id', $tenantId)
-            ->where('status', 'paid') // Hanya yang sukses bayar
-            ->sum('amount'); 
+    // 1. Cek Tipe Gateway Mitra
+    $paymentConfig = \App\Models\PaymentConfig::where('tenant_id', $tenantId)->first();
+    $paymentType = $paymentConfig->provider ?? 'koleksikas';
 
-        // B. Hitung Total yang Sedang Diproses & Sudah Dicairkan
-        $totalPendingPayout = PayoutRequest::where('tenant_id', $tenantId)->whereIn('status', ['pending', 'processing'])->sum('amount');
-        $totalCompletedPayout = PayoutRequest::where('tenant_id', $tenantId)->where('status', 'completed')->sum('amount');
+    // 2. Siapkan Query Pendapatan (Revenue)
+    $revenueQuery = Transaction::with(['user:id,name', 'billItem.bill'])
+        ->where('tenant_id', $tenantId)
+        ->whereIn('status', ['paid', 'success', 'completed', 'settlement']);
 
-        // C. Saldo Tersedia (Pendapatan - (Pending + Completed))
-        $availableBalance = $totalRevenue - ($totalPendingPayout + $totalCompletedPayout);
-
-        // D. Ambil Riwayat Pencairan (History Payout)
-        $payoutHistory = PayoutRequest::where('tenant_id', $tenantId)
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // E. Ambil Riwayat Transaksi Masuk (History Pendapatan)
-        $revenueHistory = Transaction::with(['user:id,name', 'billItem.bill'])
-            ->where('tenant_id', $tenantId)
-            ->where('status', 'paid')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
-        // F. Cek apakah pengaturan rekening sudah diisi
-        $payoutConfig = PayoutConfig::where('tenant_id', $tenantId)->first();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'summary' => [
-                    'available_balance' => $availableBalance,
-                    'total_revenue' => $totalRevenue,
-                    'total_pending' => $totalPendingPayout,
-                    'total_withdrawn' => $totalCompletedPayout,
-                ],
-                'has_payout_config' => !empty($payoutConfig->account_number),
-                'payout_history' => $payoutHistory,
-                'revenue_history' => $revenueHistory
-            ]
-        ]);
+    // --- FILTER LOGIC ---
+    if ($request->filled('start_date') && $request->filled('end_date')) {
+        // Filter berdasarkan rentang tanggal
+        $revenueQuery->whereBetween('created_at', [$request->start_date . ' 00:00:00', $request->end_date . ' 23:59:59']);
+    } elseif ($request->filled('month') && $request->filled('year')) {
+        // Filter berdasarkan bulan dan tahun
+        $revenueQuery->whereMonth('created_at', $request->month)
+                     ->whereYear('created_at', $request->year);
     }
+
+    $revenueHistory = $revenueQuery->orderBy('created_at', 'desc')->get()->map(function($trx) {
+    // Logika penamaan Gateway
+    $gatewayName = 'KoleksiKAS Gateway'; // Default
+    
+    if ($trx->payment_method === 'manual') {
+        $gatewayName = 'QRIS Statis (Manual)';
+    } elseif ($trx->provider === 'pakasir') {
+        $gatewayName = 'Pakasir (Mandiri)';
+    } elseif ($trx->provider === 'midtrans') {
+        $gatewayName = 'Midtrans (Mandiri)';
+    }
+
+    return [
+        'id' => $trx->id,
+        'created_at' => $trx->created_at,
+        'amount' => (float) $trx->amount,
+        'status' => $trx->status,
+        'gateway_name' => $gatewayName, // 👈 Tambahkan ini
+        'user' => $trx->user ? ['name' => $trx->user->name] : null,
+        'bill_item' => $trx->billItem && $trx->billItem->bill 
+            ? ['bill' => ['name' => $trx->billItem->bill->name]] 
+            : null,
+    ];
+});
+    $filteredRevenueTotal = $revenueHistory->sum('amount');
+
+    // 3. Hitung Ringkasan (Summary) - Tetap Total Keseluruhan
+    $totalRevenueAllTime = Transaction::where('tenant_id', $tenantId)
+        ->whereIn('status', ['paid', 'success', 'completed', 'settlement'])
+        ->sum('amount');
+
+    $totalPendingPayout = PayoutRequest::where('tenant_id', $tenantId)
+        ->whereIn('status', ['pending', 'processing'])
+        ->sum('amount');
+
+    $totalCompletedPayout = PayoutRequest::where('tenant_id', $tenantId)
+        ->where('status', 'completed')
+        ->sum('amount');
+
+    $availableBalance = $totalRevenueAllTime - ($totalPendingPayout + $totalCompletedPayout);
+
+    $payoutHistory = PayoutRequest::where('tenant_id', $tenantId)
+        ->orderBy('created_at', 'desc')
+        ->limit(20)
+        ->get();
+
+    $payoutConfig = \App\Models\PayoutConfig::where('tenant_id', $tenantId)->first();
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'payment_type' => $paymentType,
+            'summary' => [
+                'available_balance' => (float) $availableBalance,
+                'total_revenue' => (float) $totalRevenueAllTime,
+                'total_pending' => (float) $totalPendingPayout,
+                'total_withdrawn' => (float) $totalCompletedPayout,
+                'filtered_revenue' => (float) $filteredRevenueTotal, // Total sesuai filter
+            ],
+            'has_payout_config' => !empty($payoutConfig->account_number),
+            'payout_history' => $payoutHistory,
+            'revenue_history' => $revenueHistory
+        ]
+    ]);
+}
 
     // 2. REQUEST PENCAIRAN DANA
     public function requestPayout(Request $request)
@@ -73,7 +112,9 @@ class FinanceController extends Controller
         $requestedAmount = $request->amount;
 
         // Hitung ulang saldo untuk keamanan ganda (Double Validation)
-        $totalRevenue = Transaction::where('tenant_id', $tenantId)->where('status', 'paid')->sum('amount'); 
+        $totalRevenue = Transaction::where('tenant_id', $tenantId)
+            ->whereIn('status', ['paid', 'completed', 'settlement', 'settled', 'success']) // 👈 Tambahkan 'success' di sini
+            ->sum('amount');
         $totalDeducted = PayoutRequest::where('tenant_id', $tenantId)->whereIn('status', ['pending', 'processing', 'completed'])->sum('amount');
         $availableBalance = $totalRevenue - $totalDeducted;
 

@@ -274,11 +274,57 @@ public function joinAndPay($sessionId, $userId)
         ); 
         
         if ($billItem->status === 'paid') {
+            return response()->json(['already_paid' => true, 'message' => 'Tagihan ini sudah lunas.']);
+        }
+
+        // 👇 1. CEK APAKAH ADA TRANSAKSI PENDING SEBELUMNYA 👇
+        $pendingTx = \App\Models\Transaction::where('bill_item_id', $billItem->id)
+            ->where('status', 'pending')
+            ->first();
+
+        // JIKA ADA, KEMBALIKAN QRIS YANG LAMA TANPA NEMBAK API LAGI
+        if ($pendingTx && $pendingTx->payment_url) {
+            $baseAmount = (int) $session->price;
+            $koleksikasFee = (int) $platformFee;
+            $subTotal = $baseAmount + $koleksikasFee;
+            $pakasirFee = round($subTotal * 0.007) + 310;
+
             return response()->json([
-                'already_paid' => true, 
-                'message' => 'Tagihan ini sudah lunas.'
+                'success' => true,
+                'message' => 'Lanjutkan pembayaran',
+                'data' => [
+                    'transaction_id' => $pendingTx->id,
+                    'session_name' => $session->name,
+                    'base_amount' => $baseAmount,
+                    'platform_fee' => $koleksikasFee,
+                    'pakasir_fee' => $pakasirFee,
+                    'grand_total' => $subTotal + $pakasirFee, 
+                    'due_date' => \Carbon\Carbon::parse($session->scheduled_at)->format('d M Y, H:i'),
+                    'qris_expires_at' => $pendingTx->created_at->addHour()->format('d M Y, [H:i] WIB'),
+                    'qr_string' => $pendingTx->payment_url // 👈 AMBIL DARI DATABASE
+                ]
             ]);
         }
+
+        // 👇 2. JIKA BELUM ADA, BARU TEMBAK API PAKASIR 👇
+        $transactionId = (string) \Illuminate\Support\Str::uuid();
+        $pakasir = new \App\Services\Payment\PakasirService($config->payload);
+        
+        $charge = $pakasir->createCharge([
+            'amount' => $totalAmount, 
+            'user' => $user, 
+            'transaction_id' => $transactionId
+        ]);
+
+        \App\Models\Transaction::create([
+            'id' => $transactionId,
+            'tenant_id' => $tenantId, 
+            'bill_item_id' => $billItem->id, 
+            'user_id' => $user->id, 
+            'amount' => $totalAmount, 
+            'payment_url' => $charge['qr_code'], // 👈 SIMPAN STRING QRIS KE SINI!
+            'status' => 'pending'
+        ]);
         
 
         // 3. Eksekusi Pakasir & Catat Transaksi

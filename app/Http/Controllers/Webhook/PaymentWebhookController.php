@@ -124,20 +124,31 @@ class PaymentWebhookController extends Controller
     }
 
     // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
+    // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
     private function resolvePaymentConfig($tenantId)
     {
-        $config = \App\Models\PaymentConfig::where('tenant_id', $tenantId)->where('is_active', true)->first();
-        if ($config) return $config;
+        // Ambil config milik tenant (Sesuai kesepakatan, tanpa is_active dulu jika belum ada di DB)
+        $config = \App\Models\PaymentConfig::where('tenant_id', $tenantId)->first();
 
+        // JIKA tenant punya config SENDIRI (pakasir/midtrans), gunakan itu!
+        if ($config && $config->provider !== 'koleksikas') {
+            return $config;
+        }
+
+        // JIKA tenant pilih 'koleksikas' ATAU belum punya config, gunakan GLOBAL PAKASIR
         $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
         $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
 
-        if ($globalProject && $globalApiKey) {
+        if ($globalProject && $globalApiKey && !empty($globalProject->value)) {
             return (object) [
                 'provider' => 'pakasir',
-                'payload' => json_encode(['project' => $globalProject->value, 'api_key' => $globalApiKey->value])
+                'payload' => json_encode([
+                    'project' => $globalProject->value, 
+                    'api_key' => $globalApiKey->value
+                ])
             ];
         }
+
         return null;
     }
 
