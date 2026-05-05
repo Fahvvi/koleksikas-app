@@ -15,7 +15,7 @@ class Session extends Model
     protected $fillable = [
     'id', 'group_id', 'name', 'scheduled_at', 'end_time', 
     'location', 'maps_url', 'max_participants', 'price', 'status', 'created_by',
-    'is_public', 'banner_url', 'description'
+    'is_public', 'banner_url', 'description', 'type'
 ];
 
     public $incrementing = false;
