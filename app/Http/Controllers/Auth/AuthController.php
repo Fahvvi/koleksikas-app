@@ -17,6 +17,18 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
+        $mitraPending = \App\Models\Mitra::where('email', $request->email)
+            ->where('status', 'pending_payment')
+            ->first();
+
+        if ($mitraPending) {
+            return response()->json([
+                'message' => 'Pendaftaran Anda belum selesai. Anda akan diarahkan ke halaman pembayaran.',
+                'pending_payment' => true,
+                'mitra_id' => $mitraPending->id
+            ], 403);
+        }
+
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json([
                 'success' => false,

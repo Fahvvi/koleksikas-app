@@ -10,6 +10,7 @@ use App\Http\Controllers\SuperAdmin\GlobalSettingController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
 use App\Http\Controllers\SuperAdmin\MitraController;
 use App\Http\Controllers\Auth\ProfileController;
+use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureTenantMiddleware;
 use App\Http\Controllers\Admin\GroupController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -25,6 +26,8 @@ Route::prefix('v1')->group(function () {
     // Alur Mitra Baru (Sesuai routes.md)
     Route::post('/mitra/register', [MitraRegisterController::class, 'register']);
     Route::post('/mitra/activate', [MitraRegisterController::class, 'activate']);
+    Route::get('/public/license-tiers', [\App\Http\Controllers\SuperAdmin\LicenseTierController::class, 'index']);
+    Route::get('/public/mitra/{id}/status', [\App\Http\Controllers\MitraRegisterController::class, 'checkStatus']);
     
     // OPEN PLAY ROUTES
     Route::post('/sessions/{sessionId}/register', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'register']);
@@ -67,7 +70,15 @@ Route::prefix('v1')->group(function () {
             Route::put('/license-tiers/{id}', [LicenseTierController::class, 'update']); // Update (PUT)
             Route::put('/license-tiers/{id}/toggle', [LicenseTierController::class, 'toggleStatus']); // Aktif/Nonaktif
             Route::delete('/license-tiers/{id}', [LicenseTierController::class, 'destroy']); // Hapus (DELETE)
-        
+
+            // MANAJEMEN PENCAIRAN DANA MITRA (SUPER ADMIN)
+            Route::get('/payouts', [\App\Http\Controllers\SuperAdmin\PayoutController::class, 'index']);
+            Route::put('/payouts/{id}/process', [\App\Http\Controllers\SuperAdmin\PayoutController::class, 'process']);
+            Route::put('/payouts/{id}/complete', [\App\Http\Controllers\SuperAdmin\PayoutController::class, 'complete']);
+            Route::put('/payouts/{id}/reject', [\App\Http\Controllers\SuperAdmin\PayoutController::class, 'reject']);
+
+
+
             // --- SYSTEM HEALTH & LOGS ---
             Route::get('/system-logs', [SystemHealthController::class, 'index']);
             
@@ -75,8 +86,12 @@ Route::prefix('v1')->group(function () {
             // --- GLOBAL SETTINGS ---
             Route::get('/settings', [GlobalSettingController::class, 'index']);
             Route::put('/settings', [GlobalSettingController::class, 'update']);
+            
+
+            
             });
 
+            
         // TENANT ADMIN ROUTES...
 
         Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin', EnsureTenantMiddleware::class])->group(function () {
@@ -103,6 +118,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/sessions/{id}/broadcast', [\App\Http\Controllers\Admin\SessionController::class, 'broadcast']);
             Route::delete('/sessions/{id}', [\App\Http\Controllers\Admin\SessionController::class, 'destroy']);
             Route::post('/sessions/{session}/remind', [\App\Http\Controllers\Admin\SessionController::class, 'remind']);
+            Route::put('/sessions/{id}', [SessionController::class, 'update']);
+            Route::get('/sessions/{id}/export', [SessionController::class, 'exportAttendance']);
 
             // --- MANAJEMEN TAGIHAN ---
             Route::get('/bills', [\App\Http\Controllers\Admin\BillController::class, 'index']);

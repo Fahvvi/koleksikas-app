@@ -17,14 +17,15 @@ return new class extends Migration
             
             // --- Info Dasar ---
             $table->string('name'); // Contoh: "Open Play Minisoccer Jumat"
+            $table->string('type')->default('event'); // 👈 Dipindah ke sini (tanpa after)
             $table->text('description')->nullable(); // Contoh: "Wajib bawa sepatu turf. Free air mineral."
             $table->dateTime('scheduled_at'); // Tanggal & Jam Mulai
             $table->time('end_time')->nullable(); // Jam Selesai
             
             // --- Lokasi ---
-            $table->text('location'); // Nama Lapangan (misal: Pitch 98)
+            $table->string('location')->nullable(); // Contoh: "Lapangan ABC, Jl. Contoh No.123"
             $table->string('maps_url')->nullable(); // Link Google Maps
-            
+
             // --- Kuota & Harga ---
             $table->integer('max_participants')->default(30);
             $table->integer('price'); // Harga per slot (misal: 50000)

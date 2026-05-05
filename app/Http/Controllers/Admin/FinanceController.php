@@ -113,9 +113,15 @@ class FinanceController extends Controller
 
         // Hitung ulang saldo untuk keamanan ganda (Double Validation)
         $totalRevenue = Transaction::where('tenant_id', $tenantId)
-            ->whereIn('status', ['paid', 'completed', 'settlement', 'settled', 'success']) // 👈 Tambahkan 'success' di sini
+            ->whereIn('status', ['paid', 'completed', 'settlement', 'settled', 'success']) 
             ->sum('amount');
-        $totalDeducted = PayoutRequest::where('tenant_id', $tenantId)->whereIn('status', ['pending', 'processing', 'completed'])->sum('amount');
+            
+        // 👇 PAstikan filter tanpa global scope jika sewaktu-waktu terbawa
+        $totalDeducted = PayoutRequest::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('status', ['pending', 'processing', 'completed'])
+            ->sum('amount');
+            
         $availableBalance = $totalRevenue - $totalDeducted;
 
         if ($requestedAmount > $availableBalance) {
@@ -130,6 +136,7 @@ class FinanceController extends Controller
 
         // Buat Request Pencairan
         PayoutRequest::create([
+            'id' => \Illuminate\Support\Str::uuid(), // 👈 TAMBAHKAN INI AGAR AMAN DARI ERROR UUID
             'tenant_id' => $tenantId,
             'amount' => $requestedAmount,
             'bank_name' => $payoutConfig->bank_name,
@@ -137,8 +144,6 @@ class FinanceController extends Controller
             'account_holder' => $payoutConfig->account_holder,
             'status' => 'pending'
         ]);
-
-        // Opsional: Kirim Notifikasi ke Superadmin di sini
 
         return response()->json([
             'success' => true,

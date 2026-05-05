@@ -16,29 +16,21 @@ class PaymentWebhookController extends Controller
     public function handle(Request $request, $provider)
     {
         SystemLog::create([
-            'level' => 'info',
-            'service' => 'payment',
+            'level' => 'info', 'service' => 'payment',
             'message' => "Menerima Webhook masuk dari provider: {$provider}"
         ]);
 
         try {
-            // 1. Tangkap ID Transaksi
             $orderId = $request->input('order_id') ?? $request->input('transaction_id');
 
             if (!$orderId || !\Illuminate\Support\Str::isUuid($orderId)) {
                 return response()->json(['message' => 'Format ID tidak didukung/Kosong'], 200);
             }
 
-            // 2. Cari transaksi beserta relasinya
             $transaction = Transaction::with(['tenant', 'billItem.bill.session', 'user'])
-                ->where('id', $orderId) 
-                ->first();
+                ->where('id', $orderId)->first();
 
             if (!$transaction) {
-                SystemLog::create([
-                    'level' => 'warning', 'service' => 'payment',
-                    'message' => "Webhook {$provider} ditolak: Transaksi ID {$orderId} tidak ditemukan.",
-                ]);
                 return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
             }
 
@@ -46,67 +38,74 @@ class PaymentWebhookController extends Controller
                 return response()->json(['message' => 'Transaksi sudah diproses sebelumnya'], 200);
             }
 
-            // 3. RESOLUSI CONFIG & VERIFIKASI KEAMANAN (PRODUCTION READY 🛡️)
-            $config = $this->resolvePaymentConfig($transaction->tenant_id);
-            
-            if (!$config) {
-                return response()->json(['message' => 'Konfigurasi Gateway tidak ditemukan'], 500);
+            // CEK APAKAH INI PEMBAYARAN LISENSI B2B ATAU PEMBAYARAN IURAN MEMBER
+            $payloadData = json_decode($transaction->payload, true);
+            $isLicensePayment = ($payloadData && isset($payloadData['type']) && $payloadData['type'] === 'license_activation');
+
+            // 3. RESOLUSI CONFIG
+            if ($isLicensePayment) {
+                $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
+                $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
+                $config = (object) [
+                    'provider' => 'pakasir',
+                    'payload' => json_encode(['project' => $globalProject->value, 'api_key' => $globalApiKey->value])
+                ];
+            } else {
+                $config = $this->resolvePaymentConfig($transaction->tenant_id);
             }
+            
+            if (!$config) return response()->json(['message' => 'Konfigurasi Gateway tidak ditemukan'], 500);
 
             $paymentService = $this->getPaymentService($config);
             $signature = $request->header('X-Callback-Signature') ?? $request->header('X-Signature');
 
-            // BLOK KEAMANAN DIBUKA! 
-            // Jika provider adalah Pakasir, ini akan menembak balik API Pakasir untuk double-check!
             if (!$paymentService->verifyWebhook($request->all(), $signature)) {
-                SystemLog::create([
-                    'level' => 'critical', 'service' => 'payment',
-                    'message' => "Peringatan FRAUD! Invalid Signature/Status dari Webhook {$provider}.",
-                    'context' => [
-                        'ip_address' => $request->ip(),
-                        'transaction_id' => $orderId
-                    ]
-                ]);
                 return response()->json(['message' => 'Invalid Signature! Akses ditolak.'], 403);
             }
 
-            // 4. Proses Pembayaran Berhasil
+            // 4. PROSES PEMBAYARAN BERHASIL
             $transactionStatus = $request->input('transaction_status') ?? $request->input('status');
 
             if (in_array($transactionStatus, ['settlement', 'capture', 'paid', 'completed', 'success'])) {
                 
-                DB::transaction(function () use ($transaction, $request) {
+                DB::transaction(function () use ($transaction, $request, $isLicensePayment, $payloadData) {
                     $transaction->update([
                         'status' => 'success',
                         'paid_at' => now(),
                         'gateway_transaction_id' => $request->input('gateway_transaction_id')
                     ]);
 
-                    if ($transaction->billItem) {
-                        $transaction->billItem->update(['status' => 'paid', 'paid_at' => now()]);
-                    }
-
-                    $bill = $transaction->billItem->bill ?? null;
-                    if ($bill && $bill->session_id) {
-                        SessionParticipant::updateOrCreate(
-                            ['session_id' => $bill->session_id, 'user_id' => $transaction->user_id],
-                            ['id' => (string) Str::uuid(), 'status' => 'confirmed']
-                        );
+                    if ($isLicensePayment) {
+                        // EKSEKUSI PEMBUATAN AKUN & TENANT JIKA BAYAR LISENSI LUNAS!
+                        $mitra = \App\Models\Mitra::find($payloadData['mitra_id']);
+                        $tier = \App\Models\LicenseTier::where('slug', $payloadData['tier_slug'])->first();
+                        
+                        if ($mitra && $tier && $mitra->status !== 'active') {
+                            $registerController = new \App\Http\Controllers\MitraRegisterController();
+                            $registerController->executeActivation($mitra, $tier, $payloadData['password_hash']);
+                        }
+                    } else {
+                        // LOGIKA NORMAL IURAN MEMBER
+                        if ($transaction->billItem) {
+                            $transaction->billItem->update(['status' => 'paid', 'paid_at' => now()]);
+                        }
+                        $bill = $transaction->billItem->bill ?? null;
+                        if ($bill && $bill->session_id) {
+                            SessionParticipant::updateOrCreate(
+                                ['session_id' => $bill->session_id, 'user_id' => $transaction->user_id],
+                                ['id' => (string) Str::uuid(), 'status' => 'confirmed']
+                            );
+                        }
                     }
                 });
 
-                // 5. Trigger Notifikasi WhatsApp
-                SendWaMemberConfirmJob::dispatch($transaction);
-
-                SystemLog::create([
-                    'level' => 'info', 'service' => 'payment',
-                    'message' => "Pembayaran Sukses: Transaksi {$orderId} via {$provider} telah diproses.",
-                ]);
+                if (!$isLicensePayment) {
+                    SendWaMemberConfirmJob::dispatch($transaction);
+                }
 
                 return response()->json(['message' => 'Webhook berhasil diproses'], 200);
             }
 
-            // Handle status lain (Expired / Failed)
             if (in_array($transactionStatus, ['expire', 'cancel', 'deny', 'failed'])) {
                 $transaction->update(['status' => 'failed']);
                 return response()->json(['message' => 'Transaksi dibatalkan/kadaluarsa'], 200);

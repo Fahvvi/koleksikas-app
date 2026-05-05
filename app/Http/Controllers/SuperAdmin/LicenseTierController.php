@@ -19,32 +19,30 @@ class LicenseTierController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string',
-            'slug' => 'required|unique:license_tiers,slug',
-            'price' => 'required|numeric',
-            'max_groups' => 'required|integer',
-            'max_members_per_group' => 'required|integer',
-        ]);
+{
+    $request->validate([
+        'name' => 'required|string',
+        'slug' => 'required|unique:license_tiers,slug',
+        'price' => 'required|numeric',
+        'max_groups' => 'required|integer',
+        'max_members_per_group' => 'required|integer',
+        'max_sessions_per_month' => 'required|integer', // 👈 Tambahkan ini
+    ]);
 
-        $tier = LicenseTier::create([
-            'id' => Str::uuid(), // Jika menggunakan UUID
-            'name' => $request->name,
-            'slug' => $request->slug,
-            'price' => $request->price,
-            'max_groups' => $request->max_groups,
-            'max_members_per_group' => $request->max_members_per_group,
-            'features' => $request->features, // Simpan sebagai JSON
-            'is_active' => true
-        ]);
+    $tier = LicenseTier::create([
+        'id' => Str::uuid(),
+        'name' => $request->name,
+        'slug' => $request->slug,
+        'price' => $request->price,
+        'max_groups' => $request->max_groups,
+        'max_members_per_group' => $request->max_members_per_group,
+        'max_sessions_per_month' => $request->max_sessions_per_month, // 👈 Masukkan ke create
+        'features' => is_array($request->features) ? json_encode($request->features) : $request->features,
+        'is_active' => true
+    ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Paket berhasil dibuat',
-            'data' => $tier
-        ], 201);
-    }
+    return response()->json(['success' => true, 'data' => $tier], 201);
+}
 
     public function update(Request $request, $id)
     {

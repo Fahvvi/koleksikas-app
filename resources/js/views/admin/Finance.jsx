@@ -41,6 +41,72 @@ export default function Finance() {
 
     const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
 
+    // FUNGSI BARU: Logika Pop-Up Tarik Dana
+    const handleRequestPayout = async () => {
+        // Cek apakah belum ada rekening
+        if (!financeData.has_payout_config) {
+            MySwal.fire({
+                icon: 'warning',
+                title: 'Rekening Belum Diatur',
+                text: 'Anda harus mengatur rekening pencairan di menu Pengaturan terlebih dahulu.'
+            });
+            return;
+        }
+
+        // Pop-up input nominal menggunakan SweetAlert
+        const { value: amount } = await MySwal.fire({
+            title: 'Tarik Dana',
+            input: 'number',
+            inputLabel: `Maksimal Penarikan: ${formatRupiah(financeData.summary.available_balance)}`,
+            inputPlaceholder: 'Contoh: 100000',
+            inputAttributes: {
+                min: 10000,
+                max: financeData.summary.available_balance,
+                step: 1000
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Ajukan Penarikan',
+            cancelButtonText: 'Batal',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'Anda harus memasukkan nominal!';
+                }
+                if (value < 10000) {
+                    return 'Minimal penarikan adalah Rp 10.000!';
+                }
+                if (value > financeData.summary.available_balance) {
+                    return 'Nominal melebihi saldo tersedia!';
+                }
+            }
+        });
+
+        // Jika user klik "Ajukan Penarikan" dan input valid
+        if (amount) {
+            try {
+                MySwal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+                
+                const response = await axios.post('/api/v1/admin/finance/payout', { amount: parseFloat(amount) });
+                
+                MySwal.fire('Berhasil!', response.data.message, 'success');
+                
+                // Refresh data untuk memperbarui saldo & riwayat
+                fetchFinanceData(); 
+            } catch (error) {
+                MySwal.fire('Gagal!', error.response?.data?.message || 'Terjadi kesalahan.', 'error');
+            }
+        }
+    };
+
+    const getStatusBadge = (status) => {
+        switch(status) {
+            case 'completed': return <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-black uppercase">Selesai</span>;
+            case 'pending': return <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-[10px] font-black uppercase">Pending</span>;
+            case 'processing': return <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-black uppercase">Diproses</span>;
+            case 'rejected': return <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-black uppercase">Ditolak</span>;
+            default: return <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-[10px] font-black uppercase">{status}</span>;
+        }
+    };
+
     if (isLoading && !financeData) return <div className="p-10 text-center animate-pulse font-bold text-gray-500">Memuat Data...</div>;
 
     const { summary, payout_history, revenue_history, payment_type } = financeData;
@@ -55,8 +121,9 @@ export default function Finance() {
                         Metode: <span className="font-bold text-kas-primary uppercase">{payment_type.replace('_', ' ')}</span>
                     </p>
                 </div>
+                {/* TOMBOL TARIK DANA DIHUBUNGKAN KE FUNGSI */}
                 {isKoleksiKas && (
-                    <button onClick={() => {/* handleRequestPayout logic */}} className="w-full md:w-auto py-3 px-6 bg-kas-primary text-white rounded-xl font-bold shadow-lg shadow-kas-primary/20">
+                    <button onClick={handleRequestPayout} disabled={summary.available_balance < 10000} className="w-full md:w-auto py-3 px-6 bg-kas-primary hover:bg-kas-dark transition-all text-white rounded-xl font-bold shadow-lg shadow-kas-primary/20 disabled:opacity-50 disabled:cursor-not-allowed">
                         Tarik Dana
                     </button>
                 )}
@@ -100,7 +167,7 @@ export default function Finance() {
                         <>
                             <div className="flex-1 min-w-[150px]">
                                 <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Bulan</label>
-                                <select value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg font-bold">
+                                <select value={filters.month} onChange={e => setFilters({...filters, month: parseInt(e.target.value)})} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg font-bold">
                                     {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m, i) => (
                                         <option key={i} value={i+1}>{m}</option>
                                     ))}
@@ -108,7 +175,7 @@ export default function Finance() {
                             </div>
                             <div className="flex-1 min-w-[150px]">
                                 <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tahun</label>
-                                <select value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg font-bold">
+                                <select value={filters.year} onChange={e => setFilters({...filters, year: parseInt(e.target.value)})} className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg font-bold">
                                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                             </div>
@@ -135,9 +202,9 @@ export default function Finance() {
             {/* TABEL RIWAYAT */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex border-b border-gray-100 bg-gray-50">
-                    <button onClick={() => setActiveTab('revenue')} className={`flex-1 py-4 text-sm font-black ${activeTab === 'revenue' ? 'text-kas-primary border-b-2 border-kas-primary bg-white' : 'text-gray-400'}`}>⬇️ Uang Masuk</button>
+                    <button onClick={() => setActiveTab('revenue')} className={`flex-1 py-4 text-sm font-black transition-all ${activeTab === 'revenue' ? 'text-kas-primary border-b-2 border-kas-primary bg-white' : 'text-gray-400 hover:text-gray-600'}`}>⬇️ Uang Masuk</button>
                     {isKoleksiKas && (
-                        <button onClick={() => setActiveTab('payout')} className={`flex-1 py-4 text-sm font-black ${activeTab === 'payout' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-gray-400'}`}>↗️ Riwayat Tarik Dana</button>
+                        <button onClick={() => setActiveTab('payout')} className={`flex-1 py-4 text-sm font-black transition-all ${activeTab === 'payout' ? 'text-blue-600 border-b-2 border-blue-600 bg-white' : 'text-gray-400 hover:text-gray-600'}`}>↗️ Riwayat Tarik Dana</button>
                     )}
                 </div>
 
@@ -167,7 +234,6 @@ export default function Finance() {
                                             <p className="text-xs text-gray-700 font-bold">
                                                 {trx.bill_item?.bill?.name || 'Iuran Sesi'}
                                             </p>
-                                            {/* 👇 BADGE SUMBER GATEWAY 👇 */}
                                             <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                                 trx.gateway_name === 'KoleksiKAS Gateway' 
                                                 ? 'bg-kas-primary/10 text-kas-primary' 
@@ -186,8 +252,40 @@ export default function Finance() {
                             </tbody>
                         </table>
                     ) : (
-                        /* Payout History Table (Logic-nya sama seperti sebelumnya) */
-                        <div className="p-10 text-center text-gray-400 italic">Riwayat Pencairan...</div>
+                        // TABEL RIWAYAT PENCAIRAN
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 text-[10px] text-gray-400 uppercase font-bold">
+                                    <th className="p-4">Tanggal Pengajuan</th>
+                                    <th className="p-4">Bank Tujuan</th>
+                                    <th className="p-4">Status</th>
+                                    <th className="p-4 text-right">Nominal</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {payout_history && payout_history.length > 0 ? payout_history.map(payout => (
+                                    <tr key={payout.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-4 text-xs font-medium text-gray-500">
+                                            {new Date(payout.created_at).toLocaleString('id-ID', {
+                                                day: '2-digit', month: 'short', year: 'numeric'
+                                            })}
+                                        </td>
+                                        <td className="p-4">
+                                            <p className="text-sm font-bold text-gray-800 uppercase">{payout.bank_name}</p>
+                                            <p className="text-xs text-gray-500 font-mono mt-0.5">{payout.account_number} - {payout.account_holder}</p>
+                                        </td>
+                                        <td className="p-4">
+                                            {getStatusBadge(payout.status)}
+                                        </td>
+                                        <td className="p-4 font-black text-gray-800 text-right">
+                                            {formatRupiah(payout.amount)}
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan="4" className="p-10 text-center text-gray-400 font-bold">Belum ada riwayat penarikan dana.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     )}
                 </div>
             </div>

@@ -33,30 +33,41 @@ class MitraController extends Controller
             return response()->json(['success' => false, 'message' => 'Mitra sudah aktif.'], 400);
         }
 
-        $licenseService = app(LicenseService::class);
-        $rawLicenseKey = $licenseService->generateKey(); // Misal: KKAS-A1B2...
-
-        // Update status Mitra
-        $mitra->update(['status' => 'active', 'approved_at' => now()]);
-
-        // Update Lisensinya dengan Key yang di-hash (keamanan)
+        // Cek apakah mitra sudah punya lisensi di database
         $mitraLicense = $mitra->licenses()->first();
-        $mitraLicense->update([
-            'license_key' => Hash::make($rawLicenseKey),
-            // Statusnya biarkan pending_activation atau aktifkan langsung (sesuai dokumen: aktif setelah mitra input key)
-        ]);
 
-        // Dalam sistem aslinya, rawLicenseKey ini dikirim via Email ke Mitra
-        // Di sini kita return di response agar kamu bisa copy-paste untuk proses aktivasi nanti
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'mitra_id' => $mitra->id,
-                'license_key' => $rawLicenseKey, // CATAT KEY INI SAAT TESTING!
-                'tier' => $mitraLicense->tier->name,
-                'message' => 'Mitra berhasil di-approve. License key berhasil di-generate.'
-            ]
-        ]);
+        if (!$mitraLicense) {
+            // ALUR BYPASS BARU: Mitra baru daftar tapi di-approve paksa oleh Super Admin
+            // Kita otomatis berikan paket termurah dan password default
+            $tier = \App\Models\LicenseTier::orderBy('price', 'asc')->first(); 
+            
+            if (!$tier) {
+                return response()->json(['success' => false, 'message' => 'Gagal: Belum ada paket lisensi di database.'], 400);
+            }
+
+            // Gunakan fungsi executeActivation dari MitraRegisterController yang sudah kita buat!
+            $registerController = new \App\Http\Controllers\MitraRegisterController();
+            $registerController->executeActivation($mitra, $tier, \Illuminate\Support\Facades\Hash::make('koleksikas123'));
+
+            return response()->json([
+                'success' => true, 
+                'message' => "Bypass Approve Berhasil! Akun Admin dibuat dengan password default: koleksikas123"
+            ]);
+
+        } else {
+            // ALUR LAMA: Jika lisensi sudah ada (misal dari form Create Mitra Super Admin)
+            $licenseService = app(\App\Services\License\LicenseService::class);
+            $rawLicenseKey = $licenseService->generateKey();
+
+            $mitra->update(['status' => 'active', 'approved_at' => now()]);
+            $mitraLicense->update([
+                'license_key' => \Illuminate\Support\Facades\Hash::make($rawLicenseKey),
+                'status' => 'active',
+                'activated_at' => now()
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Mitra berhasil disetujui.']);
+        }
     }
 
     public function index()

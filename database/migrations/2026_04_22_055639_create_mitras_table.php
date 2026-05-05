@@ -17,7 +17,7 @@ return new class extends Migration
         $table->string('email')->unique();
         $table->string('phone')->nullable();
         $table->string('company_name')->nullable();
-        $table->enum('status', ['pending', 'active', 'suspended'])->default('pending');
+        $table->enum('status', ['pending', 'pending_payment', 'active', 'suspended', 'blocked'])->default('pending');
         $table->text('notes')->nullable();
         $table->text('address')->nullable();
         $table->timestamp('approved_at')->nullable();

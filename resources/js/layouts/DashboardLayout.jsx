@@ -34,6 +34,7 @@ export default function DashboardLayout() {
         { name: 'Overview', path: '/super-admin/dashboard'}, //, icon: '📊' 
         { name: 'Mitra List', path: '/super-admin/mitras'}, //, icon: '🏢' 
         { name: 'License Tiers', path: '/super-admin/license-tiers'}, //, icon: '🔑' 
+        { name: 'Payouts', path: '/super-admin/payout'}, //, icon: '💸'
         { name: 'System Logs', path: '/super-admin/system-logs'}, //, icon: '📝' 
         { name: 'Global Settings', path: '/super-admin/global-settings'}, //, icon: '⚙️'
     ] : [
