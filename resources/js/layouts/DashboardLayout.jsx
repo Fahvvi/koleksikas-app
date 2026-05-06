@@ -2,51 +2,137 @@ import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// ========================================================
+// 1. KOMPONEN NOTIFIKASI (Ditambahkan di file yang sama)
+// ========================================================
+const NotificationBell = () => {
+    const [notifs, setNotifs] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isOpen, setIsOpen] = useState(false);
+
+    const fetchNotifs = async () => {
+        try {
+            const res = await axios.get('/api/v1/notifications');
+            setNotifs(res.data.notifications || []);
+            setUnreadCount(res.data.unread_count || 0);
+        } catch (e) {
+            console.error("Gagal mengambil notifikasi", e);
+        }
+    };
+
+    useEffect(() => {
+        fetchNotifs();
+        // Cek notifikasi baru setiap 30 detik secara otomatis
+        const interval = setInterval(fetchNotifs, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const markRead = async () => {
+        setIsOpen(!isOpen);
+        // Jika dibuka dan ada yang belum dibaca, tandai sudah dibaca di database
+        if (unreadCount > 0 && !isOpen) {
+            try {
+                await axios.post('/api/v1/notifications/mark-read');
+                setUnreadCount(0);
+            } catch (e) {
+                console.error("Gagal menandai notifikasi", e);
+            }
+        }
+    };
+
+    return (
+        <div className="relative">
+            <button 
+                onClick={markRead} 
+                className="p-2 w-10 h-10 bg-white rounded-full relative hover:bg-gray-50 transition-all outline-none border border-gray-200 flex items-center justify-center shadow-sm"
+            >
+                <span className="text-xl leading-none">🔔</span>
+                {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-bounce shadow-sm">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                )}
+            </button>
+
+            {isOpen && (
+                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-[2rem] shadow-2xl border border-gray-100 z-[100] overflow-hidden animate-slide-up origin-top-right">
+                    <div className="p-5 border-b border-gray-50 flex justify-between items-center bg-kas-bg/80 backdrop-blur-md">
+                        <h4 className="font-black text-kas-dark text-sm">Notifikasi</h4>
+                        {unreadCount > 0 && (
+                            <span className="text-[10px] font-bold text-kas-primary bg-kas-primary/10 px-2 py-1 rounded-lg">Baru</span>
+                        )}
+                    </div>
+                    <div className="max-h-[25rem] overflow-y-auto divide-y divide-gray-50">
+                        {notifs.length > 0 ? notifs.map(n => (
+                            <div key={n.id} className={`p-5 hover:bg-gray-50 transition-colors ${!n.read_at ? 'bg-blue-50/40' : ''}`}>
+                                <div className="flex gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100 flex flex-shrink-0 items-center justify-center text-xl">
+                                        {n.data?.icon || '📩'}
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-800">{n.data?.title || 'Pemberitahuan Sistem'}</p>
+                                        <p className="text-[11px] text-gray-500 leading-relaxed mt-1.5">{n.data?.message || 'Ada pembaruan untuk Anda.'}</p>
+                                        <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-wider">
+                                            {new Date(n.created_at).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="p-10 text-center flex flex-col items-center justify-center gap-2">
+                                <span className="text-4xl opacity-30">📭</span>
+                                <p className="text-gray-400 text-xs font-bold">Belum ada notifikasi.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ========================================================
+// 2. LAYOUT UTAMA DASHBOARD
+// ========================================================
 export default function DashboardLayout() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     
-    // 1. TAMBAH PROPERTI 'role' DI SINI
     const [userData, setUserData] = useState({ name: 'Memuat...', initials: '?', role: null });
     
     const location = useLocation();
     const navigate = useNavigate();
 
-    // 2. AMBIL ROLE DARI DATABASE
     useEffect(() => {
         axios.get('/api/v1/user/profile')
             .then(res => {
                 if(res.data && res.data.data) {
-                    const { name, role } = res.data.data; // Ekstrak role juga
+                    const { name, role } = res.data.data;
                     const initials = name.substring(0, 2).toUpperCase(); 
-                    setUserData({ name, initials, role }); // Simpan role ke state
+                    setUserData({ name, initials, role });
                 }
             })
             .catch(err => console.error("Gagal mengambil data user", err));
     }, []);
 
-    // 3. DETEKSI LOGIKA SUPER ADMIN YANG LEBIH CERDAS
-    // Cek dari URL (biar instan pindah halaman) ATAU cek dari database (untuk halaman global seperti /profile)
     const isSuperAdmin = location.pathname.includes('/super-admin') || userData.role === 'super_admin';
 
-    // Menu dinamis berdasarkan role
     const menus = isSuperAdmin ? [
-        { name: 'Overview', path: '/super-admin/dashboard'}, //, icon: '📊' 
-        { name: 'Mitra List', path: '/super-admin/mitras'}, //, icon: '🏢' 
-        { name: 'License Tiers', path: '/super-admin/license-tiers'}, //, icon: '🔑' 
-        { name: 'Payouts', path: '/super-admin/payout'}, //, icon: '💸'
-        { name: 'System Logs', path: '/super-admin/system-logs'}, //, icon: '📝' 
-        { name: 'Global Settings', path: '/super-admin/global-settings'}, //, icon: '⚙️'
+        { name: 'Overview', path: '/super-admin/dashboard'},
+        { name: 'Mitra List', path: '/super-admin/mitras'},
+        { name: 'License Tiers', path: '/super-admin/license-tiers'},
+        { name: 'Payouts', path: '/super-admin/payout'},
+        { name: 'System Logs', path: '/super-admin/system-logs'},
+        { name: 'Global Settings', path: '/super-admin/global-settings'},
     ] : [
-        { name: 'Dashboard', path: '/admin/dashboard' }, //, icon: '🏠'
+        { name: 'Dashboard', path: '/admin/dashboard' },
         { name: 'Sesi', path: '/admin/sessions'},
-        { name: 'Tagihan (Bills)', path: '/admin/billing' }, //, icon: '💸'
-        { name: 'Member Group', path: '/admin/groups' }, //, icon: '👥'
-        { name: 'Finance & Transaksi', path: '/admin/finance'}, //, icon: '💰'
-        { name: 'Pengaturan', path: '/admin/settings'}, //, icon: '🤖' 
+        { name: 'Tagihan (Bills)', path: '/admin/billing' },
+        { name: 'Member Group', path: '/admin/groups' },
+        { name: 'Finance & Transaksi', path: '/admin/finance'},
+        { name: 'Pengaturan', path: '/admin/settings'},
     ];
 
-    // Fungsi Logout
     const handleLogout = async () => {
         try {
             await axios.post('/api/v1/auth/logout');
@@ -109,14 +195,18 @@ export default function DashboardLayout() {
                         </h2>
                     </div>
                     
-                    {/* TOPBAR KANAN: PROFIL DROPDOWN */}
-                    <div className="flex items-center gap-4">
+                    {/* TOPBAR KANAN: NOTIFIKASI & PROFIL */}
+                    <div className="flex items-center gap-3 md:gap-5">
+                        
+                        {/* 👇 TOMBOL LONCENG NOTIFIKASI DISINI 👇 */}
+                        <NotificationBell />
+
                         <div className="relative">
                             <button 
                                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                                 className="flex items-center gap-3 p-1 pr-3 bg-white rounded-full border border-gray-200 hover:border-kas-primary hover:shadow-sm transition-all outline-none"
                             >
-                                <div className="w-10 h-10 rounded-full bg-kas-primary text-white flex items-center justify-center font-bold">
+                                <div className="w-10 h-10 rounded-full bg-kas-primary text-white flex items-center justify-center font-bold shadow-inner">
                                     {userData.initials}
                                 </div>
                                 <div className="text-left hidden sm:block">
@@ -128,9 +218,9 @@ export default function DashboardLayout() {
                                 <span className="text-gray-400 text-xs ml-2 hidden sm:block">▼</span>
                             </button>
 
-                            {/* Dropdown Menu */}
+                            {/* Dropdown Menu Profil */}
                             {isProfileOpen && (
-                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fade-in">
+                                <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fade-in origin-top-right">
                                     <Link 
                                         to="/profile" 
                                         onClick={() => setIsProfileOpen(false)}
@@ -152,7 +242,7 @@ export default function DashboardLayout() {
                 </header>
 
                 {/* KONTEN DINAMIS */}
-                <main className="p-4 lg:p-8 flex-1 overflow-y-auto">
+                <main className="p-4 lg:p-8 flex-1 overflow-y-auto bg-kas-bg/30">
                     <Outlet /> 
                 </main>
 

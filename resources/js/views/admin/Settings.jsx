@@ -13,18 +13,22 @@ export default function Settings() {
     const [isEditing, setIsEditing] = useState(false);
     
     // State Pengaturan
-    const [paymentType, setPaymentType] = useState('koleksikas'); // Default yang disarankan
+    const [paymentType, setPaymentType] = useState('koleksikas'); 
     const [paymentData, setPaymentData] = useState({ project: '', api_key: '', client_key: '', server_key: '', qr_image: null });
     const [waSettings, setWaSettings] = useState({ is_active: true, daily_summary: true });
     const [payoutData, setPayoutData] = useState({ bank_name: '', account_number: '', account_holder: '' });
+    
+    // 👇 State untuk Gating Fitur Lisensi
+    const [allowedGateways, setAllowedGateways] = useState(['koleksikas']);
 
     useEffect(() => { fetchSettings(); }, []);
 
     const fetchSettings = async () => {
         try {
             const response = await axios.get('/api/v1/admin/settings');
-            const { payment, whatsapp, type, payout } = response.data.data;
+            const { payment, whatsapp, type, payout, allowed_gateways } = response.data.data;
             
+            if (allowed_gateways) setAllowedGateways(allowed_gateways);
             if (type) setPaymentType(type);
             if (payment) setPaymentData(prev => ({ ...prev, ...payment }));
             if (whatsapp) setWaSettings(prev => ({ ...prev, ...whatsapp }));
@@ -47,8 +51,8 @@ export default function Settings() {
                 payout: payoutData,
             });
             MySwal.fire('Berhasil!', 'Pengaturan Anda telah diperbarui.', 'success');
-            setIsEditing(false); // Kembali ke mode ringkasan
-            fetchSettings(); // Refresh data terbaru
+            setIsEditing(false); 
+            fetchSettings(); 
         } catch (error) {
             const errorMsg = error.response?.data?.message || 'Terjadi kesalahan saat menyimpan.';
             MySwal.fire('Gagal Menyimpan!', errorMsg, 'error');
@@ -57,26 +61,20 @@ export default function Settings() {
         }
     };
 
-    // Helper untuk mengubah gambar QRIS menjadi Base64 string
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
-            // Validasi ukuran gambar maksimal 2MB agar payload tidak terlalu berat
             if (file.size > 2 * 1024 * 1024) {
                 MySwal.fire('Gagal', 'Ukuran gambar tidak boleh lebih dari 2MB', 'error');
                 e.target.value = '';
                 return;
             }
-
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setPaymentData(prev => ({ ...prev, qr_image: reader.result }));
-            };
+            reader.onloadend = () => setPaymentData(prev => ({ ...prev, qr_image: reader.result }));
             reader.readAsDataURL(file);
         }
     };
 
-    // Helper Kamus Nama Gateway
     const gatewayNames = {
         koleksikas: '✨ KoleksiKAS (Gateway Terpusat)',
         pakasir: '🚀 Pakasir (QRIS Dinamis Mandiri)',
@@ -109,16 +107,13 @@ export default function Settings() {
             {!isEditing ? (
                 <div className="space-y-6 animate-slide-up">
                     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-6 items-start">
-                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-3xl shrink-0">
-                            🏦
-                        </div>
+                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center text-3xl shrink-0">🏦</div>
                         <div className="flex-1 space-y-4 w-full">
                             <div>
                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Gateway Pembayaran Aktif</p>
                                 <p className="text-lg font-black text-gray-800">{gatewayNames[paymentType] || paymentType}</p>
                             </div>
                             
-                            {/* Info Rekening KoleksiKAS */}
                             {paymentType === 'koleksikas' ? (
                                 payoutData.account_number ? (
                                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
@@ -139,7 +134,6 @@ export default function Settings() {
                                 )
                             ) : null}
 
-                            {/* Info Pakasir */}
                             {paymentType === 'pakasir' && paymentData.project && (
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                     <p className="text-[10px] font-bold text-gray-500 uppercase">Project Slug Pakasir</p>
@@ -147,7 +141,6 @@ export default function Settings() {
                                 </div>
                             )}
 
-                            {/* Info Midtrans */}
                             {paymentType === 'midtrans' && paymentData.client_key && (
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                     <p className="text-[10px] font-bold text-gray-500 uppercase">Midtrans Client Key</p>
@@ -156,7 +149,6 @@ export default function Settings() {
                                 </div>
                             )}
 
-                            {/* Info QRIS Statis */}
                             {paymentType === 'static_qris' && paymentData.qr_image && (
                                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                     <p className="text-[10px] font-bold text-gray-500 uppercase mb-2">Preview QRIS Tersimpan</p>
@@ -167,9 +159,7 @@ export default function Settings() {
                     </div>
 
                     <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-6">
-                        <div className="w-16 h-16 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center text-3xl shrink-0">
-                            💬
-                        </div>
+                        <div className="w-16 h-16 bg-green-50 text-green-500 rounded-2xl flex items-center justify-center text-3xl shrink-0">💬</div>
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notifikasi WhatsApp</p>
                             <p className="text-lg font-black text-gray-800">
@@ -196,18 +186,54 @@ export default function Settings() {
                             </div>
                         </div>
                         <div className="p-6 space-y-6">
+                            
+                            {/* 👇 PILIHAN GATEWAY BERDASARKAN LISENSI 👇 */}
                             <div>
-                                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Pilih Gateway</label>
-                                <select 
-                                    value={paymentType} 
-                                    onChange={(e) => setPaymentType(e.target.value)}
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-700 focus:ring-2 focus:ring-kas-primary outline-none"
-                                >
-                                    <option value="koleksikas">KoleksiKAS (Gateway Utama - Rekomendasi)</option>
-                                    <option value="pakasir">Pakasir (QRIS Dinamis Mandiri)</option>
-                                    <option value="midtrans">Midtrans (E-Wallet & Bank Otomatis)</option>
-                                    <option value="static_qris">QRIS Statis (Manual - Tanpa Potongan)</option>
-                                </select>
+                                <label className="block text-xs font-black text-gray-400 uppercase mb-3">Pilih Gateway</label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    
+                                    {/* KoleksiKAS */}
+                                    <label className={`relative p-4 border-2 rounded-2xl cursor-pointer transition-all ${paymentType === 'koleksikas' ? 'border-kas-primary bg-kas-primary/5' : 'border-gray-200'}`}>
+                                        <input type="radio" name="provider" value="koleksikas" className="hidden" 
+                                            onChange={() => setPaymentType('koleksikas')} checked={paymentType === 'koleksikas'} />
+                                        <div className="font-black text-kas-dark mb-1 text-sm">✨ KoleksiKAS</div>
+                                        <p className="text-xs text-gray-500 font-medium">Bebas repot, saldo dicairkan manual ke rekening.</p>
+                                    </label>
+
+                                    {/* Pakasir */}
+                                    <label className={`relative p-4 border-2 rounded-2xl transition-all ${!allowedGateways.includes('pakasir') ? 'opacity-50 cursor-not-allowed bg-gray-50' : paymentType === 'pakasir' ? 'border-kas-primary bg-kas-primary/5 cursor-pointer' : 'border-gray-200 cursor-pointer'}`}>
+                                        <input type="radio" name="provider" value="pakasir" className="hidden" 
+                                            disabled={!allowedGateways.includes('pakasir')} onChange={() => setPaymentType('pakasir')} checked={paymentType === 'pakasir'} />
+                                        <div className="flex justify-between items-center mb-1">
+                                            <div className="font-black text-kas-dark text-sm">🚀 Pakasir</div>
+                                            {!allowedGateways.includes('pakasir') && <span title="Eksklusif Pro/Business" className="text-sm">🔒</span>}
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-medium">Uang otomatis masuk rekening Anda.</p>
+                                    </label>
+
+                                    {/* Midtrans */}
+                                    <label className={`relative p-4 border-2 rounded-2xl transition-all ${!allowedGateways.includes('midtrans') ? 'opacity-50 cursor-not-allowed bg-gray-50' : paymentType === 'midtrans' ? 'border-kas-primary bg-kas-primary/5 cursor-pointer' : 'border-gray-200 cursor-pointer'}`}>
+                                        <input type="radio" name="provider" value="midtrans" className="hidden" 
+                                            disabled={!allowedGateways.includes('midtrans')} onChange={() => setPaymentType('midtrans')} checked={paymentType === 'midtrans'} />
+                                        <div className="flex justify-between items-center mb-1">
+                                            <div className="font-black text-kas-dark text-sm">💳 Midtrans</div>
+                                            {!allowedGateways.includes('midtrans') && <span title="Eksklusif Business" className="text-sm">🔒</span>}
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-medium">Terima VA, E-Wallet, CC otomatis.</p>
+                                    </label>
+
+                                    {/* Static QRIS */}
+                                    <label className={`relative p-4 border-2 rounded-2xl transition-all ${!allowedGateways.includes('static_qris') ? 'opacity-50 cursor-not-allowed bg-gray-50' : paymentType === 'static_qris' ? 'border-kas-primary bg-kas-primary/5 cursor-pointer' : 'border-gray-200 cursor-pointer'}`}>
+                                        <input type="radio" name="provider" value="static_qris" className="hidden" 
+                                            disabled={!allowedGateways.includes('static_qris')} onChange={() => setPaymentType('static_qris')} checked={paymentType === 'static_qris'} />
+                                        <div className="flex justify-between items-center mb-1">
+                                            <div className="font-black text-kas-dark text-sm">🖼️ QRIS Statis</div>
+                                            {!allowedGateways.includes('static_qris') && <span title="Eksklusif Business" className="text-sm">🔒</span>}
+                                        </div>
+                                        <p className="text-xs text-gray-500 font-medium">Tanpa potongan fee, konfirmasi manual.</p>
+                                    </label>
+
+                                </div>
                             </div>
 
                             <div className="p-4 bg-kas-bg/30 rounded-2xl border border-dashed border-gray-200">
@@ -254,15 +280,8 @@ export default function Settings() {
                                         <div className="text-xs font-bold text-orange-600 mb-2 italic">* Member akan men-scan QRIS ini. Konfirmasi pelunasan dilakukan manual oleh Admin.</div>
                                         <div>
                                             <label className="block text-[10px] font-black text-gray-500 uppercase mb-1">Unggah Gambar QRIS Statis</label>
-                                            <input 
-                                                type="file" 
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="w-full p-3 border border-gray-200 rounded-xl bg-white text-sm" 
-                                            />
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full p-3 border border-gray-200 rounded-xl bg-white text-sm" />
                                         </div>
-                                        
-                                        {/* Preview gambar jika sudah ada data */}
                                         {paymentData.qr_image && (
                                             <div className="mt-4 p-4 bg-white border border-gray-100 rounded-xl inline-block">
                                                 <p className="text-[10px] font-black text-gray-400 uppercase mb-2 text-center">Preview QRIS</p>
@@ -356,10 +375,7 @@ export default function Settings() {
                     {/* ACTION BUTTONS */}
                     <div className="flex flex-col-reverse md:flex-row gap-4 pt-4">
                         <button 
-                            onClick={() => {
-                                setIsEditing(false);
-                                fetchSettings(); // Kembalikan form ke data asli jika dibatalkan
-                            }}
+                            onClick={() => { setIsEditing(false); fetchSettings(); }}
                             className="w-full md:w-1/3 py-4 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-2xl font-black text-lg transition-all active:scale-95"
                         >
                             Batal Edit

@@ -10,21 +10,17 @@ export default function AdminSessions() {
     const [groups, setGroups] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
-    // Modal State (Create)
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // Modal State (Detail)
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedSession, setSelectedSession] = useState(null);
-
-    // state untuk tab detail sesi (info, peserta, edit)
     const [detailTab, setDetailTab] = useState('info');
     
     const [formData, setFormData] = useState({
         group_id: '', name: '', description: '', scheduled_at: '', end_time: '', 
         location: '', maps_url: '', price: 0, max_participants: 30, is_public: false,
-        type: 'event' // 👈 DEFAULT TIPE DITAMBAHKAN
+        type: 'event'
     });
 
     const Toast = MySwal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
@@ -49,7 +45,6 @@ export default function AdminSessions() {
 
     const formatRupiah = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
     const formatDate = (dateString) => new Date(dateString).toLocaleString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-
     const formatForInput = (dateString) => {
         if (!dateString) return '';
         const d = new Date(dateString);
@@ -127,20 +122,39 @@ export default function AdminSessions() {
     const openDetailModal = async (session) => {
         setSelectedSession(session);
         setFormData({
-            group_id: session.group_id,
-            name: session.name,
-            description: session.description || '',
-            scheduled_at: formatForInput(session.scheduled_at),
-            end_time: session.end_time || '',
-            location: session.location || '',
-            maps_url: session.maps_url || '',
-            price: session.price,
-            max_participants: session.max_participants,
-            is_public: session.is_public,
-            type: session.type || 'event' // 👈 POPULATE TYPE
+            group_id: session.group_id, name: session.name, description: session.description || '',
+            scheduled_at: formatForInput(session.scheduled_at), end_time: session.end_time || '',
+            location: session.location || '', maps_url: session.maps_url || '',
+            price: session.price, max_participants: session.max_participants, is_public: session.is_public, type: session.type || 'event'
         });
         setDetailTab('info');
         setIsDetailModalOpen(true);
+    };
+
+    // 👇 FUNGSI BARU: KONFIRMASI MANUAL 👇
+    const handleConfirmManual = async (userId, userName) => {
+        MySwal.fire({
+            title: 'Konfirmasi Pembayaran?',
+            text: `Tandai tagihan ${userName} sebagai LUNAS secara manual?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#25D366',
+            confirmButtonText: 'Ya, Lunas!',
+            cancelButtonText: 'Batal'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    MySwal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+                    await axios.post(`/api/v1/admin/sessions/${selectedSession.id}/confirm/${userId}`);
+                    
+                    MySwal.fire('Berhasil!', 'Pembayaran telah dikonfirmasi.', 'success');
+                    fetchData();
+                    setIsDetailModalOpen(false);
+                } catch (error) {
+                    MySwal.fire('Gagal', error.response?.data?.message || 'Terjadi kesalahan.', 'error');
+                }
+            }
+        });
     };
 
     const handleManualReminder = async (sessionId) => {
@@ -148,11 +162,7 @@ export default function AdminSessions() {
             const result = await MySwal.fire({
                 title: 'Kirim Pengingat?',
                 text: "Sistem akan mengirim pesan WA ke member grup yang belum lunas.",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, Kirim Sekarang!',
-                cancelButtonText: 'Batal',
-                confirmButtonColor: '#f97316' 
+                icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Kirim Sekarang!', cancelButtonText: 'Batal', confirmButtonColor: '#f97316' 
             });
 
             if (result.isConfirmed) {
@@ -167,13 +177,8 @@ export default function AdminSessions() {
 
     const handleBroadcastWA = async () => {
         MySwal.fire({
-            title: 'Kirim Broadcast WA?',
-            text: `Tagihan "${selectedSession.name}" akan dikirim ke semua anggota grup.`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#25D366', 
-            confirmButtonText: 'Kirim Sekarang!',
-            cancelButtonText: 'Batal'
+            title: 'Kirim Broadcast WA?', text: `Tagihan "${selectedSession.name}" akan dikirim ke semua anggota grup.`,
+            icon: 'question', showCancelButton: true, confirmButtonColor: '#25D366', confirmButtonText: 'Kirim Sekarang!', cancelButtonText: 'Batal'
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
@@ -226,13 +231,10 @@ export default function AdminSessions() {
                                     <span className={`px-2.5 py-1 text-[10px] font-black rounded uppercase tracking-wider ${badge.color}`}>
                                         {badge.icon} {badge.label}
                                     </span>
-                                    <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">
-                                        {session.status}
-                                    </span>
+                                    <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">{session.status}</span>
                                 </div>
                                 <h3 className="text-lg font-black text-kas-dark leading-tight">{session.name}</h3>
                                 <p className="text-xs font-bold text-kas-primary mt-1">{session.group?.name}</p>
-                                
                                 <div className="mt-4 space-y-2 text-sm text-gray-600 font-medium">
                                     <div className="flex items-center gap-2"><span>🕒</span> Tenggat: {formatDate(session.scheduled_at)}</div>
                                     <div className="flex items-center gap-2"><span>💸</span> {Number(session.price) === 0 ? 'Suka-suka' : formatRupiah(session.price)} / Orang</div>
@@ -293,28 +295,47 @@ export default function AdminSessions() {
                                 </div>
                             )}
 
+                            {/* 👇 TAB PESERTA YANG SUDAH DIPERBARUI 👇 */}
                             {detailTab === 'participants' && (
                                 <div className="animate-slide-up">
                                     <div className="flex gap-2 mb-4">
-                                        <button onClick={() => handleManualReminder(selectedSession.id)} className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center gap-2">📢 Colek yang Belum Bayar</button>
+                                        <button onClick={() => handleManualReminder(selectedSession.id)} className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center gap-2">📢 Colek Belum Bayar</button>
                                         <button onClick={() => handleExportPDF(selectedSession.id, selectedSession.name)} className="flex-1 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2">📄 Export PDF</button>
                                     </div>
-                                    {selectedSession.confirmed_participants?.length > 0 ? (
+                                    
+                                    {selectedSession.all_participants?.length > 0 ? (
                                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
-                                            {selectedSession.confirmed_participants.map((p, index) => (
-                                                <div key={index} className="flex justify-between items-center p-4 hover:bg-gray-50">
+                                            {selectedSession.all_participants.map((p, index) => (
+                                                <div key={index} className="flex justify-between items-center p-4 hover:bg-gray-50 transition-colors">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-kas-primary/10 text-kas-primary font-black flex items-center justify-center text-xs">{index + 1}</div>
-                                                        <div><p className="font-bold text-gray-800 text-sm">{p.name}</p><p className="text-xs text-gray-400">{p.phone}</p></div>
+                                                        <div className="w-8 h-8 rounded-full bg-kas-bg text-kas-dark font-black flex items-center justify-center text-xs border border-gray-200">
+                                                            {index + 1}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800 text-sm">{p.name}</p>
+                                                            <p className="text-xs text-gray-400">{p.phone}</p>
+                                                        </div>
                                                     </div>
-                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-black uppercase">Paid</span>
+                                                    
+                                                    {p.status === 'paid' ? (
+                                                        <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center gap-1">
+                                                            <span>✓</span> LUNAS
+                                                        </span>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={() => handleConfirmManual(p.id, p.name)}
+                                                            className="bg-kas-primary hover:bg-kas-dark text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm"
+                                                        >
+                                                            Tandai Lunas
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
                                         <div className="text-center py-8">
                                             <div className="text-4xl mb-2 opacity-50">🤷‍♂️</div>
-                                            <p className="text-gray-500 font-bold text-sm">Belum ada yang lunas.</p>
+                                            <p className="text-gray-500 font-bold text-sm">Belum ada peserta yang mendaftar.</p>
                                         </div>
                                     )}
                                 </div>
@@ -323,7 +344,6 @@ export default function AdminSessions() {
                             {detailTab === 'edit' && (
                                 <form onSubmit={handleUpdate} className="space-y-5 animate-slide-up">
                                     <div className="grid grid-cols-1 gap-4">
-                                        {/* 👇 JENIS TAGIHAN DITAMBAHKAN DI SINI JUGA 👇 */}
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 mb-1">Jenis Penagihan</label>
                                             <select required value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-kas-primary outline-none text-sm font-bold text-kas-primary">
@@ -368,7 +388,6 @@ export default function AdminSessions() {
                         
                         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* 👇 INPUT TIPE DITAMBAHKAN DI SINI 👇 */}
                                 <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
                                     <label className="block text-sm font-black text-blue-900 mb-2 uppercase tracking-wide">Pilih Jenis Penagihan</label>
                                     <div className="flex gap-2">
@@ -416,7 +435,6 @@ export default function AdminSessions() {
                                     </div>
                                 </div>
                                 
-                                {/* Lokasi & Jam selesai kita sembunyikan jika bukan Event mabar */}
                                 {formData.type === 'event' && (
                                     <>
                                         <div><label className="block text-sm font-bold text-gray-700 mb-1">Jam Selesai (Opsional)</label><input type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none" /></div>

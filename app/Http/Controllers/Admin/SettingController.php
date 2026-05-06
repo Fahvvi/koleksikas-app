@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentConfig;
 use App\Models\WhatsappConfig;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -14,22 +15,30 @@ class SettingController extends Controller
     {
         $tenantId = $request->user()->tenant_id;
 
+        // 👇 1. AMBIL DATA LISENSI TENANT 👇
+        $tenant = Tenant::with('mitraLicense.tier')->find($tenantId);
+        $tierFeatures = $tenant->mitraLicense->tier->features ?? [];
+        if (is_string($tierFeatures)) {
+            $tierFeatures = json_decode($tierFeatures, true);
+        }
+        
+        // Ambil allowed_gateways dari JSON, defaultnya hanya 'koleksikas'
+        $allowedGateways = $tierFeatures['allowed_gateways'] ?? ['koleksikas'];
+
         $paymentConfig = PaymentConfig::where('tenant_id', $tenantId)->first();
         $waConfig = WhatsappConfig::where('tenant_id', $tenantId)->first();
-        // 👇 AMBIL DATA REKENING DARI DATABASE
         $payoutConfig = \App\Models\PayoutConfig::where('tenant_id', $tenantId)->first();
-
+        
         return response()->json([
             'success' => true,
             'data' => [
-                // 👇 KIRIMKAN TIPE GATEWAY (Default ke koleksikas jika kosong)
                 'type' => $paymentConfig->provider ?? 'koleksikas',
                 'payment' => $paymentConfig ? json_decode($paymentConfig->payload) : null,
                 'whatsapp' => $waConfig ? [
                     'is_active' => (bool) $waConfig->is_active,
                     'daily_summary' => (bool) ($waConfig->settings['daily_summary'] ?? true) 
                 ] : null,
-                // 👇 KIRIMKAN DATA REKENING
+                'allowed_gateways' => $allowedGateways, // 👈 KIRIM KE FRONTEND
                 'payout' => $payoutConfig ? [
                     'bank_name' => $payoutConfig->bank_name ?? '',
                     'account_number' => $payoutConfig->account_number ?? '',
@@ -47,10 +56,27 @@ class SettingController extends Controller
 
             // 1. Simpan Pengaturan Payment Gateway
             if ($request->has('type')) {
+                $provider = $request->input('type');
+
+                // 👇 VALIDASI KEAMANAN BACKEND 👇
+                $tenant = Tenant::with('mitraLicense.tier')->find($tenantId);
+                $tierFeatures = $tenant->mitraLicense->tier->features ?? [];
+                if (is_string($tierFeatures)) {
+                    $tierFeatures = json_decode($tierFeatures, true);
+                }
+                $allowedGateways = $tierFeatures['allowed_gateways'] ?? ['koleksikas'];
+
+                // Tolak jika Mitra mencoba menyimpan gateway yang tidak diizinkan
+                if (!in_array($provider, $allowedGateways)) {
+                    return response()->json([
+                        'message' => 'Paket lisensi Anda tidak mendukung Gateway ini. Silakan upgrade paket Anda.'
+                    ], 403);
+                }
+
                 \App\Models\PaymentConfig::updateOrCreate(
                     ['tenant_id' => $tenantId],
                     [
-                        'provider' => $request->input('type'), // pakasir / static_qris
+                        'provider' => $provider,
                         'payload' => json_encode($request->input('payment'))
                     ]
                 );
@@ -89,14 +115,12 @@ class SettingController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            // CATAT ERROR KE DATABASE!
             \App\Models\SystemLog::create([
                 'level' => 'critical', 
                 'service' => 'settings',
                 'message' => "Gagal simpan pengaturan: " . $e->getMessage()
             ]);
 
-            // LEMPAR PESAN ERROR KE REACT
             return response()->json([
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);

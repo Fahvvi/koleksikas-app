@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Request;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\MitraRegisterController;
 use App\Http\Controllers\SuperAdmin\MitraController as SuperAdminMitraController;
@@ -12,6 +13,9 @@ use App\Http\Controllers\SuperAdmin\MitraController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureTenantMiddleware;
+use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\FinanceController;
+use App\Http\Controllers\Admin\BillController;
 use App\Http\Controllers\Admin\GroupController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 
@@ -23,6 +27,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/sessions/{session}/join/{user}', [\App\Http\Controllers\Admin\SessionController::class, 'joinAndPay']);
     Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
     Route::get('/sessions/{sessionId}/qris', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'getQris']);
+    Route::post('/public/transactions/{id}/mark-paid', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'markAsPaid']);
     // Alur Mitra Baru (Sesuai routes.md)
     Route::post('/mitra/register', [MitraRegisterController::class, 'register']);
     Route::post('/mitra/activate', [MitraRegisterController::class, 'activate']);
@@ -48,7 +53,22 @@ Route::prefix('v1')->group(function () {
             Route::put('/user/profile/basic', [ProfileController::class, 'updateBasic']);
             Route::post('/user/otp/request', [ProfileController::class, 'requestOtp']);
             Route::post('/user/otp/verify', [ProfileController::class, 'verifyOtp']);
-        // SUPER ADMIN ROUTES
+        
+        // Notifikasi
+        Route::get('/notifications', function (Request $request) {
+        return response()->json([
+            'unread_count' => $request->user()->unreadNotifications->count(),
+            'notifications' => $request->user()->notifications()->limit(10)->get()
+        ]);
+        });
+
+        Route::post('/notifications/mark-read', function (Request $request) {
+            $request->user()->unreadNotifications->markAsRead();
+            return response()->json(['success' => true]);
+        });
+        
+        
+            // SUPER ADMIN ROUTES
         // Menggunakan role middleware yang sudah kita buat sebelumnya
         Route::prefix('super-admin')->middleware('role:super_admin')->group(function () {
             Route::get('/overview', [DashboardController::class, 'index']);
@@ -120,6 +140,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/sessions/{session}/remind', [\App\Http\Controllers\Admin\SessionController::class, 'remind']);
             Route::put('/sessions/{id}', [SessionController::class, 'update']);
             Route::get('/sessions/{id}/export', [SessionController::class, 'exportAttendance']);
+            Route::post('sessions/{session}/confirm/{user}', [SessionController::class, 'confirmManualPayment']);
 
             // --- MANAJEMEN TAGIHAN ---
             Route::get('/bills', [\App\Http\Controllers\Admin\BillController::class, 'index']);
