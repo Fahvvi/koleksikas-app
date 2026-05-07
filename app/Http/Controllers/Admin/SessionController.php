@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\DB;
 
 class SessionController extends Controller
 {
-    // 1. GET ALL SESSIONS
     public function index(Request $request)
     {
         $tenantId = $request->user()->tenant_id;
@@ -27,10 +26,42 @@ class SessionController extends Controller
         ->orderBy('scheduled_at', 'desc')
         ->get()
         ->map(function ($session) {
-            // 👇 AMBIL SEMUA PESERTA DARI BILL ITEMS (YANG PENDING & PAID) 👇
-            $billItems = BillItem::with('user')->whereHas('bill', function($q) use ($session) {
+            
+            // 1. Ambil semua anggota grup
+            $groupMembers = \App\Models\GroupMember::with('user')->where('group_id', $session->group_id)->get();
+            
+            // 2. Ambil semua tagihan yang sudah masuk (termasuk non-anggota grup yang join via link)
+            $billItems = \App\Models\BillItem::with('user')->whereHas('bill', function($q) use ($session) {
                 $q->where('session_id', $session->id);
             })->get();
+
+            $participants = collect();
+
+            // Masukkan anggota grup dengan status default 'pending'
+            foreach($groupMembers as $member) {
+                if ($member->user) {
+                    $participants->put($member->user->id, [
+                        'id' => $member->user->id,
+                        'name' => $member->user->name ?? 'Member',
+                        'phone' => $member->user->phone_wa ?? '-',
+                        'status' => 'pending', 
+                        'amount' => $session->price
+                    ]);
+                }
+            }
+
+            // Timpa statusnya jika mereka sudah punya tagihan (Misal: klik link checkout)
+            foreach($billItems as $item) {
+                if ($item->user) {
+                    $participants->put($item->user->id, [
+                        'id' => $item->user->id,
+                        'name' => $item->user->name ?? 'Member',
+                        'phone' => $item->user->phone_wa ?? '-',
+                        'status' => $item->status, 
+                        'amount' => $item->amount
+                    ]);
+                }
+            }
 
             return [
                 'id' => $session->id,
@@ -45,17 +76,7 @@ class SessionController extends Controller
                 'status' => $session->status,
                 'is_public' => $session->is_public,
                 'description' => $session->description,
-                
-                // 👇 PETAKAN SEMUA PESERTA (TERMASUK YANG PENDING) 👇
-                'all_participants' => $billItems->map(function ($item) {
-                    return [
-                        'id' => $item->user->id ?? 'unknown',
-                        'name' => $item->user->name ?? 'User Terhapus',
-                        'phone' => $item->user->phone_wa ?? '-',
-                        'status' => $item->status, // 'pending' atau 'paid'
-                        'amount' => $item->amount
-                    ];
-                })->values()
+                'all_participants' => $participants->values()->toArray() // Pastikan formatnya array bersih!
             ];
         });
 
@@ -203,26 +224,22 @@ class SessionController extends Controller
         ]);
     }
 
-    // 6. MAGIC LINK: GENERATE QRIS & REDIRECT
-    // 6. MAGIC LINK: GENERATE QRIS & REDIRECT
     private function resolvePaymentConfig($tenantId)
     {
         $config = \App\Models\PaymentConfig::where('tenant_id', $tenantId)
                     ->where('is_active', true)
                     ->first();
 
-        // 👇 CEK JIKA GATEWAY MITRA BUKAN KOLEKSIKAS, KEMBALIKAN GATEWAY MEREKA 👇
         if ($config && $config->provider !== 'koleksikas') {
             return $config;
         }
 
-        // JIKA GATEWAY KOLEKSIKAS ATAU KOSONG, FALLBACK KE SUPER ADMIN
         $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
         $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
 
         if ($globalProject && $globalApiKey && !empty($globalProject->value) && !empty($globalApiKey->value)) {
             return (object) [
-                'provider' => 'koleksikas', // 👈 Kita set ini agar sistem tahu ini adalah gateway utama
+                'provider' => 'koleksikas', 
                 'payload' => json_encode([
                     'project' => $globalProject->value,
                     'api_key' => $globalApiKey->value
@@ -243,11 +260,9 @@ class SessionController extends Controller
             $config = $this->resolvePaymentConfig($tenantId);
             if (!$config) return response()->json(['message' => 'Sistem pembayaran belum siap.'], 400);
 
-            // TENTUKAN JENIS GATEWAY
             $isKoleksiKas = $config->provider === 'koleksikas';
             $isStaticQris = $config->provider === 'static_qris';
 
-            // 👇 LOGIKA BARU: PLATFORM FEE HANYA BERLAKU JIKA PAKAI KOLEKSIKAS GATEWAY 👇
             $feeSetting = \App\Models\GlobalSetting::where('key', 'platform_fee')->first();
             $platformFee = $isKoleksiKas ? ((int) ($feeSetting->value ?? 0)) : 0;
             
@@ -266,7 +281,6 @@ class SessionController extends Controller
 
             if ($billItem->status === 'paid') return response()->json(['already_paid' => true, 'message' => 'Tagihan ini sudah lunas.']);
 
-            // 👇 1. JIKA GATEWAY ADALAH QRIS STATIS (MANUAL) 👇
             if ($isStaticQris) {
                 $payloadData = json_decode($config->payload, true);
                 $qrImage = $payloadData['qr_image'] ?? null;
@@ -299,7 +313,6 @@ class SessionController extends Controller
                 ]);
             }
 
-            // CEK TRANSAKSI DINAMIS PENDING
             $pendingTx = Transaction::where('bill_item_id', $billItem->id)->where('status', 'pending')->first();
             
             if ($pendingTx && $pendingTx->payment_url) {
@@ -317,7 +330,7 @@ class SessionController extends Controller
                             'pakasir_fee' => $pakasirFee,
                             'grand_total' => $totalAmount + $pakasirFee, 
                             'due_date' => \Carbon\Carbon::parse($session->scheduled_at)->format('d M Y, H:i'),
-                            'qris_expires_at' => $pendingTx->created_at->addHour()->format('d M Y, [H:i] WIB'), // 👈 INI SUDAH DIKEMBALIKAN!
+                            'qris_expires_at' => $pendingTx->created_at->addHour()->format('d M Y, [H:i] WIB'),
                             'qr_string' => $pendingTx->payment_url,
                             'is_static' => false 
                         ]
@@ -327,7 +340,6 @@ class SessionController extends Controller
                 }
             }
 
-            // 👇 2. JIKA GATEWAY DINAMIS (KOLEKSIKAS / PAKASIR MANDIRI) 👇
             $transactionId = (string) Str::uuid();
             $pakasir = new \App\Services\Payment\PakasirService($config->payload);
             $charge = $pakasir->createCharge(['amount' => $totalAmount, 'user' => $user, 'transaction_id' => $transactionId]);
@@ -351,7 +363,7 @@ class SessionController extends Controller
                     'pakasir_fee' => $pakasirFee,
                     'grand_total' => $grandTotal, 
                     'due_date' => \Carbon\Carbon::parse($session->scheduled_at)->format('d M Y, H:i'),
-                    'qris_expires_at' => now()->addHour()->format('d M Y, [H:i] WIB'), // 👈 INI SUDAH DIKEMBALIKAN!
+                    'qris_expires_at' => now()->addHour()->format('d M Y, [H:i] WIB'),
                     'qr_string' => $charge['qr_code'],
                     'is_static' => false
                 ]
@@ -366,42 +378,7 @@ class SessionController extends Controller
         }
     }
 
-    // 👇 FUNGSI BARU: KONFIRMASI PEMBAYARAN MANUAL OLEH ADMIN 👇
-    public function confirmManualPayment(Request $request, $id, $userId)
-    {
-        $tenantId = $request->user()->tenant_id;
-
-        $session = Session::whereHas('group', function ($q) use ($tenantId) {
-            $q->where('tenant_id', $tenantId);
-        })->findOrFail($id);
-
-        $bill = Bill::where('session_id', $session->id)->first();
-        if (!$bill) return response()->json(['message' => 'Data tagihan tidak ditemukan.'], 404);
-
-        $billItem = BillItem::where('bill_id', $bill->id)->where('user_id', $userId)->firstOrFail();
-
-        if ($billItem->status === 'paid') {
-            return response()->json(['message' => 'Tagihan sudah berstatus lunas.'], 400);
-        }
-
-        DB::transaction(function () use ($billItem, $session, $userId) {
-            // Lunas-kan Bill Item
-            $billItem->update(['status' => 'paid', 'paid_at' => now()]);
-
-            // Lunas-kan Transaksi (Jika ada)
-            Transaction::where('bill_item_id', $billItem->id)
-                ->where('status', 'pending')
-                ->update(['status' => 'success', 'paid_at' => now()]);
-
-            // Masukkan ke Daftar Peserta Confirmed
-            SessionParticipant::updateOrCreate(
-                ['session_id' => $session->id, 'user_id' => $userId],
-                ['id' => (string) Str::uuid(), 'status' => 'confirmed']
-            );
-        });
-
-        return response()->json(['success' => true, 'message' => 'Pembayaran berhasil dikonfirmasi secara manual!']);
-    }
+    
 
     public function update(Request $request, $id) {
         $tenantId = $request->user()->tenant_id;
@@ -423,9 +400,6 @@ class SessionController extends Controller
         return $pdf->download("Laporan-{$session->name}.pdf");
     }
 
-    // ==========================================
-    // FITUR MANUAL REMINDER (COLEK MEMBER)
-    // ==========================================
     public function remind(Request $request, $id)
     {
         $tenantId = $request->user()->tenant_id;
@@ -454,7 +428,6 @@ class SessionController extends Controller
                 
                 $magicLink = "{$appUrl}/checkout/{$session->id}/{$member->user->id}";
 
-                // 👇 BUG 3 FIXED: Copywriting Disesuaikan dengan Tipe Tagihan
                 if ($session->type === 'arisan') {
                     $pesan = "🔔 *PENGINGAT ARISAN: {$session->name}*\n\n"
                            . "Halo *{$member->user->name}*,\n"
@@ -487,4 +460,56 @@ class SessionController extends Controller
             'message' => "Pengingat berhasil dikirim ke {$pesanTerkirim} member yang belum membayar!"
         ]);
     }
+
+    // ========================================================
+    // 1. FUNGSI KONFIRMASI OLEH ADMIN (Kirim WA Lunas ke Member)
+    // ========================================================
+    public function confirmManualPayment(Request $request, $id, $userId)
+    {
+        $tenantId = $request->user()->tenant_id;
+
+        $session = Session::whereHas('group', function ($q) use ($tenantId) {
+            $q->where('tenant_id', $tenantId);
+        })->findOrFail($id);
+
+        $billItem = null;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($session, $userId, $tenantId, &$billItem) {
+            // Jika tagihan belum ada, otomatis buatkan (Penting untuk member yang bayar cash tanpa klik link)
+            $bill = \App\Models\Bill::firstOrCreate(
+                ['session_id' => $session->id, 'tenant_id' => $tenantId],
+                ['id' => (string) \Illuminate\Support\Str::uuid(), 'group_id' => $session->group_id, 'name' => "Tagihan {$session->name}", 'amount' => $session->price, 'status' => 'active', 'due_date' => $session->scheduled_at, 'created_by' => $session->created_by]
+            );
+
+            $billItem = \App\Models\BillItem::firstOrCreate(
+                ['bill_id' => $bill->id, 'user_id' => $userId],
+                ['id' => (string) \Illuminate\Support\Str::uuid(), 'amount' => $session->price, 'status' => 'pending']
+            );
+
+            if ($billItem->status === 'paid') return; // Skip jika sudah lunas
+
+            // Tandai lunas
+            $billItem->update(['status' => 'paid', 'paid_at' => now()]);
+            \App\Models\Transaction::where('bill_item_id', $billItem->id)->where('status', 'pending')->update(['status' => 'success', 'paid_at' => now()]);
+            \App\Models\SessionParticipant::updateOrCreate(['session_id' => $session->id, 'user_id' => $userId], ['id' => (string) \Illuminate\Support\Str::uuid(), 'status' => 'confirmed']);
+        });
+
+        // Kirim WA "Pembayaran Diterima"
+        try {
+            $user = \App\Models\User::find($userId);
+            if ($user && $user->phone_wa) {
+                // Konversi 0 ke 62 otomatis
+                $waTarget = preg_replace('/[^0-9]/', '', $user->phone_wa);
+                if (substr($waTarget, 0, 1) === '0') $waTarget = '62' . substr($waTarget, 1);
+
+                $waha = new \App\Services\WhatsApp\WahaService();
+                $nominal = number_format($session->price, 0, ',', '.');
+                $pesan = "✅ *PEMBAYARAN DITERIMA*\n\nHalo *{$user->name}*,\nPembayaran Anda sebesar *Rp {$nominal}* untuk *{$session->name}* telah dikonfirmasi oleh Admin dan dinyatakan LUNAS!\n\nTerima kasih atas partisipasinya.";
+                $waha->send($waTarget, $pesan);
+            }
+        } catch (\Exception $e) {}
+
+        return response()->json(['success' => true, 'message' => 'Pembayaran berhasil dikonfirmasi secara manual!']);
+    }
+
 }

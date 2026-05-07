@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Request;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\MitraRegisterController;
 use App\Http\Controllers\SuperAdmin\MitraController as SuperAdminMitraController;
@@ -55,14 +54,14 @@ Route::prefix('v1')->group(function () {
             Route::post('/user/otp/verify', [ProfileController::class, 'verifyOtp']);
         
         // Notifikasi
-        Route::get('/notifications', function (Request $request) {
-        return response()->json([
-            'unread_count' => $request->user()->unreadNotifications->count(),
-            'notifications' => $request->user()->notifications()->limit(10)->get()
-        ]);
+        Route::get('/notifications', function (\Illuminate\Http\Request $request) { // 👈 UBAH DI SINI
+            return response()->json([
+                'unread_count' => $request->user()->unreadNotifications->count(),
+                'notifications' => $request->user()->notifications()->limit(10)->get()
+            ]);
         });
 
-        Route::post('/notifications/mark-read', function (Request $request) {
+        Route::post('/notifications/mark-read', function (\Illuminate\Http\Request $request) { // 👈 UBAH DI SINI
             $request->user()->unreadNotifications->markAsRead();
             return response()->json(['success' => true]);
         });

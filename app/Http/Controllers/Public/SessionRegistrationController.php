@@ -89,46 +89,115 @@ class SessionRegistrationController extends Controller
         };
     }
 
+    // ========================================================
+    // 2. FUNGSI KONFIRMASI OLEH MEMBER (Kirim Notif ke Admin)
+    // ========================================================
     public function markAsPaid($transactionId)
     {
-        $transaction = \App\Models\Transaction::with(['tenant', 'user', 'billItem.bill'])->findOrFail($transactionId);
+        try {
+            $transaction = \Illuminate\Support\Facades\DB::table('transactions')->where('id', $transactionId)->first();
+            if (!$transaction) return response()->json(['message' => 'Transaksi tidak valid.'], 404);
+            if ($transaction->status === 'success') return response()->json(['message' => 'Tagihan sudah lunas'], 400);
 
-        if ($transaction->status === 'success') {
-            return response()->json(['message' => 'Tagihan sudah lunas'], 400);
-        }
+            $user = \Illuminate\Support\Facades\DB::table('users')->where('id', $transaction->user_id)->first();
+            $userName = $user ? $user->name : 'Member';
 
-        // 1. Cari Admin
-        $admin = \App\Models\User::where('tenant_id', $transaction->tenant_id)
-            ->where('role', 'admin')
-            ->first();
+            $billItem = \Illuminate\Support\Facades\DB::table('bill_items')->where('id', $transaction->bill_item_id)->first();
+            $bill = $billItem ? \Illuminate\Support\Facades\DB::table('bills')->where('id', $billItem->bill_id)->first() : null;
+            $session = $bill ? \Illuminate\Support\Facades\DB::table('play_sessions')->where('id', $bill->session_id)->first() : null;
+            $namaTagihan = $session ? $session->name : ($bill ? $bill->name : 'Tagihan Komunitas');
 
-        if ($admin) {
-            // 👇 2. KIRIM NOTIFIKASI DATABASE (PASTI MASUK) 👇
-            $admin->notify(new \App\Notifications\ManualPaymentNotification([
-                'user_name' => $transaction->user->name,
-                'bill_name' => $transaction->billItem->bill->name,
-                'amount' => $transaction->amount,
-                'transaction_id' => $transaction->id
-            ]));
-
-            // 3. Kirim WhatsApp (Fallback)
-            try {
-                $waha = new \App\Services\WhatsApp\WahaService();
-                $nominal = number_format($transaction->amount, 0, ',', '.');
-                $pesan = "🔔 *KONFIRMASI BAYAR MANUAL*\n\nMember *{$transaction->user->name}* lapor sudah bayar *Rp {$nominal}*.\nCek dashboard sekarang!";
-                $waha->send($admin->phone_wa, $pesan);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("WA Gagal: " . $e->getMessage());
+            $admin = null;
+            if ($session && $session->created_by) {
+                $admin = \Illuminate\Support\Facades\DB::table('users')->where('id', $session->created_by)->first();
             }
+            if (!$admin && $bill && $bill->tenant_id) {
+                $admin = \Illuminate\Support\Facades\DB::table('users')->where('tenant_id', $bill->tenant_id)->where('role', '!=', 'user')->first();
+            }
+
+            // ==========================================
+            // JARING SYSLOG: REKAM IDENTITAS ADMIN
+            // ==========================================
+            $statusAdmin = $admin ? "KETEMU (ID: {$admin->id}, WA: " . ($admin->phone_wa ?? 'KOSONG') . ")" : "TIDAK KETEMU";
+            \Illuminate\Support\Facades\DB::table('system_logs')->insert([
+                'id' => \Illuminate\Support\Str::uuid()->toString(),
+                'level' => 'info', 'service' => 'payment_debug',
+                'message' => "[DEBUG 1] Pencarian Admin: {$statusAdmin}",
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            if ($admin) {
+                // BLOK A: NOTIFIKASI LONCENG
+                try {
+                    \Illuminate\Support\Facades\DB::table('notifications')->insert([
+                        'id' => \Illuminate\Support\Str::uuid()->toString(),
+                        'type' => 'App\Notifications\ManualPaymentNotification',
+                        'notifiable_type' => 'App\Models\User',
+                        'notifiable_id' => $admin->id,
+                        'data' => json_encode([
+                            'title' => 'Konfirmasi Bayar Manual',
+                            'message' => "Member {$userName} lapor sudah membayar untuk {$namaTagihan}.",
+                            'amount' => $transaction->amount,
+                            'transaction_id' => $transaction->id,
+                            'type' => 'payment_confirmation',
+                            'icon' => '💳'
+                        ]),
+                        'read_at' => null, 'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                    
+                    \Illuminate\Support\Facades\DB::table('system_logs')->insert([
+                        'id' => \Illuminate\Support\Str::uuid()->toString(),
+                        'level' => 'info', 'service' => 'payment_debug',
+                        'message' => "[DEBUG 2] Notifikasi Lonceng DB Berhasil Disuntikkan.",
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Gagal Suntik DB Notif: " . $e->getMessage());
+                }
+
+                // BLOK B: NOTIFIKASI WHATSAPP
+                try {
+                    // Cari nomor WA
+                    $waTarget = $admin->phone_wa ?? $admin->phone ?? null;
+
+                    if ($waTarget) {
+                        // 👇 FILTER NOMOR WA JADI FORMAT INTERNASIONAL (62) 👇
+                        // 1. Bersihkan semua karakter selain angka (spasi, strip, +)
+                        $waTarget = preg_replace('/[^0-9]/', '', $waTarget);
+                        // 2. Jika depannya '0', ganti jadi '62'
+                        if (substr($waTarget, 0, 1) === '0') {
+                            $waTarget = '62' . substr($waTarget, 1);
+                        }
+
+                        $waha = new \App\Services\WhatsApp\WahaService();
+                        $nominal = number_format($transaction->amount, 0, ',', '.');
+                        $pesan = "🔔 *KONFIRMASI BAYAR MANUAL*\n\n"
+                               . "Member *{$userName}* lapor sudah bayar *Rp {$nominal}* untuk {$namaTagihan}.\n\n"
+                               . "Silakan cek mutasi dan tekan 'Tandai Lunas' di dashboard sekarang!";
+                        
+                        $waha->send($waTarget, $pesan);
+                        
+                        \Illuminate\Support\Facades\DB::table('system_logs')->insert([
+                            'id' => \Illuminate\Support\Str::uuid()->toString(),
+                            'level' => 'info', 'service' => 'payment_debug',
+                            'message' => "[DEBUG 3] WA berhasil ditembak ke nomor: {$waTarget}",
+                            'created_at' => now(), 'updated_at' => now(),
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\DB::table('system_logs')->insert([
+                        'id' => \Illuminate\Support\Str::uuid()->toString(),
+                        'level' => 'error', 'service' => 'payment_debug',
+                        'message' => "[DEBUG 3] WA Crash: " . $e->getMessage(),
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return response()->json(['success' => true, 'message' => 'Konfirmasi diterima!']);
+            
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error Server: ' . $e->getMessage()], 500);
         }
-
-        // Catat ke SystemLog
-        \App\Models\SystemLog::create([
-            'level' => 'info',
-            'service' => 'payment',
-            'message' => "User {$transaction->user->name} mengonfirmasi pembayaran manual (TxID: {$transactionId})."
-        ]);
-
-        return response()->json(['success' => true, 'message' => 'Konfirmasi diterima!']);
     }
 }

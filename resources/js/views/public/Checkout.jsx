@@ -62,7 +62,8 @@ export default function Checkout() {
                         text: 'Admin telah menerima notifikasi. Status akan lunas setelah admin mengecek mutasi masuk.',
                         confirmButtonColor: '#842A3B'
                     }).then(() => {
-                        window.location.reload(); 
+                        // 👇 UBAH DI SINI: Arahkan ke halaman Payment Success 👇
+                        navigate('/payment/success', { replace: true });
                     });
                 } catch (e) {
                     MySwal.fire('Gagal', 'Gagal mengirim konfirmasi.', 'error');

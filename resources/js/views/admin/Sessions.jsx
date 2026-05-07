@@ -17,6 +17,9 @@ export default function AdminSessions() {
     const [selectedSession, setSelectedSession] = useState(null);
     const [detailTab, setDetailTab] = useState('info');
     
+    const [searchParticipant, setSearchParticipant] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+
     const [formData, setFormData] = useState({
         group_id: '', name: '', description: '', scheduled_at: '', end_time: '', 
         location: '', maps_url: '', price: 0, max_participants: 30, is_public: false,
@@ -74,6 +77,7 @@ export default function AdminSessions() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
+            // is_public akan otomatis terkirim karena sudah ada di formData
             const payload = { ...formData, price: parseFloat(formData.price), max_participants: parseInt(formData.max_participants) };
             await axios.post('/api/v1/admin/sessions', payload);
             Toast.fire({ icon: 'success', title: 'Tagihan/Jadwal berhasil dibuat!' });
@@ -125,13 +129,14 @@ export default function AdminSessions() {
             group_id: session.group_id, name: session.name, description: session.description || '',
             scheduled_at: formatForInput(session.scheduled_at), end_time: session.end_time || '',
             location: session.location || '', maps_url: session.maps_url || '',
-            price: session.price, max_participants: session.max_participants, is_public: session.is_public, type: session.type || 'event'
+            price: session.price, max_participants: session.max_participants, is_public: session.is_public || false, type: session.type || 'event'
         });
         setDetailTab('info');
+        setSearchParticipant(''); 
+        setFilterStatus('all');   
         setIsDetailModalOpen(true);
     };
 
-    // 👇 FUNGSI BARU: KONFIRMASI MANUAL 👇
     const handleConfirmManual = async (userId, userName) => {
         MySwal.fire({
             title: 'Konfirmasi Pembayaran?',
@@ -146,7 +151,6 @@ export default function AdminSessions() {
                 try {
                     MySwal.fire({ title: 'Memproses...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
                     await axios.post(`/api/v1/admin/sessions/${selectedSession.id}/confirm/${userId}`);
-                    
                     MySwal.fire('Berhasil!', 'Pembayaran telah dikonfirmasi.', 'success');
                     fetchData();
                     setIsDetailModalOpen(false);
@@ -186,7 +190,7 @@ export default function AdminSessions() {
                     await axios.post(`/api/v1/admin/sessions/${selectedSession.id}/broadcast`);
                     MySwal.fire('Berhasil!', 'Pesan broadcast sedang dikirim ke member.', 'success');
                 } catch (error) {
-                    MySwal.fire('Gagal', 'Terjadi kesalahan saat mengirim broadcast.', 'error');
+                    MySwal.fire('Gagal', error.response?.data?.message || 'Terjadi kesalahan.', 'error');
                 }
             }
         });
@@ -198,6 +202,17 @@ export default function AdminSessions() {
             case 'iuran': return { icon: '💰', label: 'Iuran', color: 'bg-blue-100 text-blue-700' };
             case 'event': default: return { icon: '⚽', label: 'Event/Mabar', color: 'bg-purple-100 text-purple-700' };
         }
+    };
+
+    const getFilteredParticipants = () => {
+        if (!selectedSession || !selectedSession.all_participants) return [];
+        return selectedSession.all_participants.filter(p => {
+            const nameMatch = (p.name || '').toLowerCase().includes((searchParticipant || '').toLowerCase());
+            const phoneMatch = (p.phone || '').includes(searchParticipant || '');
+            const matchesSearch = nameMatch || phoneMatch;
+            const matchesStatus = filterStatus === 'all' ? true : (filterStatus === 'paid' ? p.status === 'paid' : p.status !== 'paid');
+            return matchesSearch && matchesStatus;
+        });
     };
 
     return (
@@ -225,13 +240,19 @@ export default function AdminSessions() {
                 ) : sessions.map(session => {
                     const badge = getBadgeInfo(session.type);
                     return (
-                        <div key={session.id} className="bg-white rounded-2xl border border-kas-accent/30 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-                            <div className="p-5 border-b border-gray-100 flex-1">
-                                <div className="flex justify-between items-start mb-3">
+                        <div key={session.id} className="bg-white rounded-2xl border border-kas-accent/30 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col relative">
+                            {/* 👇 BADGE SESI PUBLIK 👇 */}
+                            {session.is_public && (
+                                <div className="absolute top-4 right-4 bg-orange-500 text-white text-[9px] font-black px-2 py-1 rounded shadow-sm tracking-wider uppercase z-10">
+                                    🌐 Open Play
+                                </div>
+                            )}
+
+                            <div className="p-5 border-b border-gray-100 flex-1 relative">
+                                <div className="flex justify-between items-start mb-3 pr-20">
                                     <span className={`px-2.5 py-1 text-[10px] font-black rounded uppercase tracking-wider ${badge.color}`}>
                                         {badge.icon} {badge.label}
                                     </span>
-                                    <span className="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded">{session.status}</span>
                                 </div>
                                 <h3 className="text-lg font-black text-kas-dark leading-tight">{session.name}</h3>
                                 <p className="text-xs font-bold text-kas-primary mt-1">{session.group?.name}</p>
@@ -261,7 +282,10 @@ export default function AdminSessions() {
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="bg-kas-dark p-6 border-b border-gray-100 flex justify-between items-start text-white relative flex-shrink-0">
                             <div className="pr-8">
-                                <h3 className="text-2xl font-black leading-tight">{selectedSession.name}</h3>
+                                <h3 className="text-2xl font-black leading-tight flex items-center gap-2">
+                                    {selectedSession.name} 
+                                    {selectedSession.is_public && <span className="bg-orange-500 text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">Publik</span>}
+                                </h3>
                                 <p className="text-gray-300 text-sm mt-1">{selectedSession.group?.name}</p>
                             </div>
                             <button onClick={() => setIsDetailModalOpen(false)} className="text-gray-400 hover:text-white text-2xl font-bold absolute top-4 right-5">✕</button>
@@ -286,6 +310,22 @@ export default function AdminSessions() {
                                             <div className="text-right"><p className="text-gray-400 text-xs font-bold uppercase">Target/Kuota</p><p className="font-black text-kas-dark text-base">{selectedSession.participants_count} <span className="text-gray-400 font-medium text-xs">/ {selectedSession.max_participants}</span></p></div>
                                         </div>
                                     </div>
+                                    
+                                    {selectedSession.type === 'event' && selectedSession.location && (
+                                        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xl">📍</span>
+                                                <div>
+                                                    <p className="font-bold text-gray-800 text-sm">{selectedSession.location}</p>
+                                                    <p className="text-xs text-gray-400">Lokasi Kegiatan</p>
+                                                </div>
+                                            </div>
+                                            {selectedSession.maps_url && (
+                                                <a href={selectedSession.maps_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">Buka Maps</a>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {selectedSession.description && (
                                         <div>
                                             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Deskripsi / Catatan</h4>
@@ -295,25 +335,39 @@ export default function AdminSessions() {
                                 </div>
                             )}
 
-                            {/* 👇 TAB PESERTA YANG SUDAH DIPERBARUI 👇 */}
                             {detailTab === 'participants' && (
-                                <div className="animate-slide-up">
-                                    <div className="flex gap-2 mb-4">
+                                <div className="animate-slide-up space-y-4">
+                                    <div className="flex gap-2">
                                         <button onClick={() => handleManualReminder(selectedSession.id)} className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-[11px] font-black tracking-wide uppercase transition-all flex items-center justify-center gap-2">📢 Colek Belum Bayar</button>
                                         <button onClick={() => handleExportPDF(selectedSession.id, selectedSession.name)} className="flex-1 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2">📄 Export PDF</button>
                                     </div>
                                     
-                                    {selectedSession.all_participants?.length > 0 ? (
+                                    <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+                                        <input 
+                                            type="text" 
+                                            placeholder="🔍 Cari nama atau no WA..." 
+                                            value={searchParticipant}
+                                            onChange={(e) => setSearchParticipant(e.target.value)}
+                                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-kas-primary transition-colors"
+                                        />
+                                        <div className="flex bg-gray-50 rounded-lg p-1">
+                                            <button onClick={() => setFilterStatus('all')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-colors ${filterStatus === 'all' ? 'bg-white shadow-sm text-kas-dark' : 'text-gray-500 hover:text-gray-700'}`}>Semua</button>
+                                            <button onClick={() => setFilterStatus('paid')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-colors ${filterStatus === 'paid' ? 'bg-green-100 text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Lunas</button>
+                                            <button onClick={() => setFilterStatus('pending')} className={`flex-1 text-xs font-bold py-1.5 rounded-md transition-colors ${filterStatus === 'pending' ? 'bg-orange-100 text-orange-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Belum Bayar</button>
+                                        </div>
+                                    </div>
+                                    
+                                    {getFilteredParticipants().length > 0 ? (
                                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
-                                            {selectedSession.all_participants.map((p, index) => (
-                                                <div key={index} className="flex justify-between items-center p-4 hover:bg-gray-50 transition-colors">
+                                            {getFilteredParticipants().map((p, index) => (
+                                                <div key={p.id || index} className="flex justify-between items-center p-4 hover:bg-gray-50 transition-colors">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-kas-bg text-kas-dark font-black flex items-center justify-center text-xs border border-gray-200">
-                                                            {index + 1}
+                                                        <div className="w-8 h-8 rounded-full bg-kas-bg text-kas-dark font-black flex items-center justify-center text-xs border border-gray-200 flex-shrink-0">
+                                                            {(p.name || '?').charAt(0).toUpperCase()}
                                                         </div>
                                                         <div>
                                                             <p className="font-bold text-gray-800 text-sm">{p.name}</p>
-                                                            <p className="text-xs text-gray-400">{p.phone}</p>
+                                                            <p className="text-[10px] text-gray-400 font-medium">{p.phone}</p>
                                                         </div>
                                                     </div>
                                                     
@@ -334,8 +388,8 @@ export default function AdminSessions() {
                                         </div>
                                     ) : (
                                         <div className="text-center py-8">
-                                            <div className="text-4xl mb-2 opacity-50">🤷‍♂️</div>
-                                            <p className="text-gray-500 font-bold text-sm">Belum ada peserta yang mendaftar.</p>
+                                            <div className="text-3xl mb-2 opacity-30">🔍</div>
+                                            <p className="text-gray-500 font-bold text-xs">Peserta tidak ditemukan.</p>
                                         </div>
                                     )}
                                 </div>
@@ -358,6 +412,34 @@ export default function AdminSessions() {
                                             <div className="flex-1"><label className="block text-sm font-bold text-gray-700 mb-1">Nominal (Rp)</label><input type="number" required min="0" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-kas-primary outline-none text-sm" /></div>
                                             <div className="flex-1"><label className="block text-sm font-bold text-gray-700 mb-1">Target Kuota</label><input type="number" required min="1" value={formData.max_participants} onChange={e => setFormData({...formData, max_participants: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-kas-primary outline-none text-sm" /></div>
                                         </div>
+                                        
+                                        {formData.type === 'event' && (
+                                            <>
+                                                <div><label className="block text-sm font-bold text-gray-700 mb-1">Jam Selesai (Opsional)</label><input type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none text-sm" /></div>
+                                                <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl space-y-3">
+                                                    <div><label className="block text-xs font-bold text-purple-900 mb-1">Nama Lokasi/Venue</label><input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-kas-primary outline-none text-sm" placeholder="Cth: Futsal Kopi Hitam" /></div>
+                                                    <div><label className="block text-xs font-bold text-purple-900 mb-1">Link Google Maps (Opsional)</label><input type="url" value={formData.maps_url} onChange={e => setFormData({...formData, maps_url: e.target.value})} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-kas-primary outline-none text-sm" placeholder="Cth: https://maps.app.goo.gl/..." /></div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* 👇 SAKLAR (TOGGLE) SESI PUBLIK 👇 */}
+                                        <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl mt-4">
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-800">Sesi Publik (Open Play)</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">Izinkan pendaftaran dari luar grup (via link/share).</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="sr-only peer"
+                                                    checked={formData.is_public}
+                                                    onChange={(e) => setFormData({...formData, is_public: e.target.checked})}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-kas-primary"></div>
+                                            </label>
+                                        </div>
+
                                         <div><label className="block text-sm font-bold text-gray-700 mb-1">Deskripsi / Catatan</label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-kas-primary outline-none text-sm" rows="2"></textarea></div>
                                     </div>
                                     <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-kas-primary hover:bg-kas-dark text-white rounded-xl font-bold transition-all disabled:opacity-70 mt-2">
@@ -368,9 +450,12 @@ export default function AdminSessions() {
                         </div>
 
                         <div className="p-5 bg-white border-t border-gray-100 flex flex-col gap-3 flex-shrink-0">
-                            <button onClick={handleBroadcastWA} className="w-full py-3.5 bg-[#25D366] hover:bg-[#1DA851] text-white rounded-xl font-black text-sm shadow-lg shadow-green-200 transition-transform active:scale-95 flex items-center justify-center gap-2">
-                                Broadcast Tagihan via WA
-                            </button>
+                            {/* Broadcast button disembunyikan khusus Sesi Publik sesuai logic Backend */}
+                            {!selectedSession.is_public && (
+                                <button onClick={handleBroadcastWA} className="w-full py-3.5 bg-[#25D366] hover:bg-[#1DA851] text-white rounded-xl font-black text-sm shadow-lg shadow-green-200 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                                    Broadcast Tagihan via WA
+                                </button>
+                            )}
                             <button onClick={() => setIsDetailModalOpen(false)} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-kas-dark rounded-xl font-bold text-sm transition-colors">Tutup</button>
                         </div>
                     </div>
@@ -437,10 +522,32 @@ export default function AdminSessions() {
                                 
                                 {formData.type === 'event' && (
                                     <>
-                                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Jam Selesai (Opsional)</label><input type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none" /></div>
-                                        <div><label className="block text-sm font-bold text-gray-700 mb-1">Nama Lokasi/Venue</label><input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none" /></div>
+                                        <div className="md:col-span-2"><label className="block text-sm font-bold text-gray-700 mb-1">Jam Selesai (Opsional)</label><input type="time" value={formData.end_time} onChange={e => setFormData({...formData, end_time: e.target.value})} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none" /></div>
+                                        
+                                        <div className="md:col-span-2 p-4 bg-purple-50 border border-purple-100 rounded-xl space-y-4">
+                                            <div><label className="block text-xs font-bold text-purple-900 mb-1">Nama Lokasi/Venue</label><input type="text" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-kas-primary outline-none" placeholder="Cth: Futsal Kopi Hitam" /></div>
+                                            <div><label className="block text-xs font-bold text-purple-900 mb-1">Link Google Maps (Opsional)</label><input type="url" value={formData.maps_url} onChange={e => setFormData({...formData, maps_url: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-kas-primary outline-none text-blue-600" placeholder="Cth: https://maps.app.goo.gl/..." /></div>
+                                        </div>
                                     </>
                                 )}
+
+                                {/* 👇 SAKLAR (TOGGLE) SESI PUBLIK 👇 */}
+                                <div className="md:col-span-2 flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl mt-2">
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-800">Sesi Publik (Open Play)</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">Izinkan pendaftaran dari luar grup (via link/share).</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            className="sr-only peer"
+                                            checked={formData.is_public}
+                                            onChange={(e) => setFormData({...formData, is_public: e.target.checked})}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-kas-primary"></div>
+                                    </label>
+                                </div>
+
                             </div>
 
                             <div className="flex gap-3 pt-4 border-t border-gray-100">
