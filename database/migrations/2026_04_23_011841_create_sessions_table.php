@@ -25,7 +25,7 @@ return new class extends Migration
             // --- Lokasi ---
             $table->string('location')->nullable(); // Contoh: "Lapangan ABC, Jl. Contoh No.123"
             $table->string('maps_url')->nullable(); // Link Google Maps
-
+            $table->string('region')->nullable(); // Contoh: "Jakarta Selatan"
             // --- Kuota & Harga ---
             $table->integer('max_participants')->default(30);
             $table->integer('price'); // Harga per slot (misal: 50000)

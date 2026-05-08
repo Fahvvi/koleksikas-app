@@ -15,6 +15,8 @@ import PaymentSuccess from './views/public/PaymentSuccess';
 import SetPassword from './views/auth/SetPassword';
 import MitraCheckout from './views/public/MitraCheckout.jsx';
 import Checkout from './views/public/Checkout.jsx';
+import ExploreOpenPlay from './views/public/ExploreOpenPlay.jsx';
+import UserLogin from './views/auth/UserLogin.jsx';
 
 // ==========================================
 // 2. IMPORT LAYOUTS
@@ -102,7 +104,9 @@ function App() {
                 <Route path="/auth/set-password" element={<SetPassword />} />
                 <Route path="/checkout/:sessionId/:userId" element={<Checkout />} />
                 <Route path="/mitra/checkout/:mitraId" element={<MitraCheckout />} />
-                
+                <Route path="/explore" element={<ExploreOpenPlay />} />
+                <Route path="/user/login" element={<UserLogin />} />
+
                 {/* --- RUTE DASHBOARD (Dibungkus oleh Layout) --- */}
                 <Route element={<DashboardLayout />}>
 
