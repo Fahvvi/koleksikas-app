@@ -2,11 +2,22 @@
 
 /* Konfigurasi Tema Tailwind v4 kamu */
 @theme {
-  --color-kas-dark: #662222;
-  --color-kas-primary: #842A3B;
-  --color-kas-soft: #A3485A;
-  --color-kas-accent: #F5DAA7;
-  --color-kas-bg: #FFFDF9;
-  
+  --color-kas-dark: #1E1B4B;     /* Ungu/Indigo sangat gelap - Premium */
+  --color-kas-primary: #4F46E5;  /* Indigo - Modern, Tech-savvy, Inovatif */
+  --color-kas-soft: #818CF8;     /* Indigo lembut */
+  --color-kas-accent: #06B6D4;   /* Cyan Terang - Sangat Sporty dan Fun */
+  --color-kas-bg: #FAFAFA;    /* Abu-abu sangat terang - Bersih, Minimalis */
+
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --animate-aurora: aurora 60s linear infinite;
+
+}
+
+@keyframes aurora {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
 }

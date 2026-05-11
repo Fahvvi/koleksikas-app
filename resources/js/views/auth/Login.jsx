@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { Mail, ShieldCheck, EyeOff, Eye, ArrowRight, CreditCard } from 'lucide-react';
 
 const MySwal = withReactContent(Swal);
 
@@ -21,23 +22,16 @@ export default function Login() {
         try {
             const response = await axios.post('/api/v1/auth/login', formData);
             
-            const token = response.data.data.token; 
-            const user = response.data.data.user;
+            const token = response.data.access_token; 
+            const user = response.data.user;
 
-            // Simpan token untuk Axios (jika kamu pakai interceptor)
-            localStorage.setItem('auth_token', token);
-            // Simpan objek user secara utuh untuk dibaca oleh RoleGuard di app.jsx!
+            localStorage.setItem('auth_token', token); 
             localStorage.setItem('user', JSON.stringify(user));
 
             MySwal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Berhasil masuk!',
-                showConfirmButton: false,
-                timer: 1500
+                toast: true, position: 'top-end', icon: 'success', title: 'Berhasil masuk!',
+                showConfirmButton: false, timer: 1500
             }).then(() => {
-                // Arahkan sesuai Role
                 if(user.role === 'super_admin') {
                     navigate('/super-admin/dashboard', { replace: true });
                 } else {
@@ -46,176 +40,163 @@ export default function Login() {
             });
             
         } catch (error) {
-            // 👇 TANGKAP PENOLAKAN DARI BACKEND JIKA BELUM BAYAR 👇
             if (error.response?.status === 403 && error.response?.data?.pending_payment) {
                 MySwal.fire({
-                    icon: 'warning',
-                    title: 'Pembayaran Tertunda',
-                    text: error.response.data.message,
-                    confirmButtonColor: '#842A3B',
-                    confirmButtonText: 'Lanjutkan Pembayaran'
+                    icon: 'warning', title: 'Pembayaran Tertunda',
+                    text: error.response.data.message, confirmButtonColor: '#842A3B',
+                    confirmButtonText: 'Lanjutkan Pembayaran', customClass: { popup: 'rounded-2xl' }
                 }).then(() => {
                     navigate(`/mitra/checkout/${error.response.data.mitra_id}`);
                 });
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
                 setIsLoading(false);
                 return;
             }
 
-            // Error normal (Password salah)
             MySwal.fire({
-                icon: 'error',
-                title: 'Login Gagal',
+                icon: 'error', title: 'Akses Ditolak',
                 text: error.response?.data?.message || 'Email atau kata sandi Anda salah.',
-                confirmButtonColor: '#842A3B'
+                confirmButtonColor: '#842A3B', customClass: { popup: 'rounded-2xl' }
             });
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-kas-bg flex font-sans text-kas-dark">
+        // Menggunakan min-h-screen agar bisa scroll alami jika layar HP sangat kecil
+        <div className="flex min-h-screen w-full bg-kas-bg font-sans text-kas-dark selection:bg-kas-accent selection:text-kas-dark">
             
             {/* ========================================== */}
-            {/* SISI KIRI: Branding & Informasi (Sembunyi di Mobile) */}
+            {/* SISI KIRI: Branding (Hanya muncul di Desktop) */}
             {/* ========================================== */}
-            <div className="hidden lg:flex lg:w-1/2 bg-kas-primary text-white flex-col justify-between p-12 xl:p-20 relative overflow-hidden">
+            <div className="hidden lg:flex lg:w-1/2 bg-kas-primary text-white flex-col justify-between p-10 xl:p-16 relative overflow-hidden">
                 {/* Ornamen Background Transparan */}
-                <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-white opacity-5 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-black opacity-10 rounded-full blur-3xl"></div>
+                <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-black opacity-20 rounded-full blur-3xl pointer-events-none"></div>
 
                 <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-16">
+                    <div className="flex items-center gap-3 mb-12">
                         <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-kas-primary font-black text-xl">K</span>
+                            <CreditCard className="w-6 h-6 text-kas-primary" />
                         </div>
-                        <span className="text-3xl font-extrabold tracking-tight text-white">
+                        <span className="text-3xl font-black tracking-tight text-white">
                             Koleksi<span className="text-kas-accent">Kas.</span>
                         </span>
                     </div>
 
-                    <h1 className="text-5xl xl:text-6xl font-black mb-6 leading-tight">
+                    <h1 className="text-4xl xl:text-5xl font-black mb-5 leading-tight drop-shadow-sm">
                         Kelola Koleksi,<br/>Catat dengan Cerdas.
                     </h1>
-                    <p className="text-white/80 text-lg mb-12 max-w-md leading-relaxed font-medium">
-                        KoleksiKas membantu Anda mencatat, mengelola, dan memantau semua koleksi kas komunitas dengan mudah, otomatis, dan efisien via QRIS.
+                    <p className="text-white/80 text-base mb-10 max-w-md leading-relaxed font-medium">
+                        Platform manajemen kas, arisan, dan mabar olahraga yang dirancang untuk mempermudah tugas admin komunitas via integrasi WhatsApp dan QRIS.
                     </p>
 
-                    <div className="grid grid-cols-2 gap-8 max-w-lg">
+                    <div className="grid grid-cols-2 gap-6 max-w-lg">
                         <div>
-                            <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
-                                <span className="text-2xl">⚡</span>
+                            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm border border-white/10">
+                                <span className="text-xl">⚡</span>
                             </div>
-                            <h4 className="font-bold text-lg mb-1">Penagihan Mudah</h4>
-                            <p className="text-sm text-white/70 font-medium">Catat & tagih koleksi dengan cepat dan praktis.</p>
+                            <h4 className="font-bold text-base mb-1">Otomatisasi Penuh</h4>
+                            <p className="text-xs text-white/70 font-medium">Sistem penagihan & rekap lunas jalan sendiri.</p>
                         </div>
                         <div>
-                            <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
-                                <span className="text-2xl">🔒</span>
+                            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-3 backdrop-blur-sm border border-white/10">
+                                <span className="text-xl">🔒</span>
                             </div>
-                            <h4 className="font-bold text-lg mb-1">Data Aman</h4>
-                            <p className="text-sm text-white/70 font-medium">Keamanan data Anda adalah prioritas utama kami.</p>
+                            <h4 className="font-bold text-base mb-1">Keamanan Data</h4>
+                            <p className="text-xs text-white/70 font-medium">Seluruh data keuangan terenkripsi aman.</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="relative z-10 text-white/50 text-sm font-medium">
-                    &copy; {new Date().getFullYear()} KoleksiKas. All rights reserved.
+                <div className="relative z-10 text-white/50 text-xs font-medium">
+                    &copy; {new Date().getFullYear()} KoleksiKAS by RootanRoo.
                 </div>
             </div>
 
             {/* ========================================== */}
-            {/* SISI KANAN: Form Login */}
+            {/* SISI KANAN: Form Login (Responsive Mobile & Desktop) */}
             {/* ========================================== */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
-                {/* Logo untuk Mobile (Muncul jika lg ke bawah) */}
-                <div className="absolute top-8 left-8 lg:hidden flex items-center gap-2">
+            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-6 relative">
+                
+                {/* Logo untuk Mobile */}
+                <div className="absolute top-6 left-6 lg:hidden flex items-center gap-2">
                     <div className="w-8 h-8 bg-kas-primary rounded-lg flex items-center justify-center shadow-md">
-                        <span className="text-white font-black text-sm">K</span>
+                        <CreditCard className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-2xl font-extrabold tracking-tight text-kas-primary">
-                        Koleksi<span className="text-kas-soft">Kas.</span>
+                    <span className="text-xl font-black tracking-tight text-kas-primary">
+                        Koleksi<span className="text-kas-dark">Kas.</span>
                     </span>
                 </div>
 
-                <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+                {/* Form Card - Dibuat lebih padat */}
+                <div className="w-full max-w-[400px] bg-white p-6 sm:p-8 rounded-[2rem] shadow-2xl shadow-kas-dark/5 border border-gray-100 z-10 mt-12 lg:mt-0">
                     
-                    <div className="text-center mb-10">
-                        {/* Icon Kotak di Atas Form (Seperti di referensi) */}
-                        <div className="w-16 h-16 bg-kas-primary text-white rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-kas-primary/30 mb-6">
-                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                            </svg>
+                    <div className="text-center mb-8">
+                        <div className="w-14 h-14 bg-gradient-to-br from-kas-primary to-kas-soft text-white rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-kas-primary/30 mb-4 transform -rotate-6">
+                            <ShieldCheck className="w-7 h-7 transform rotate-6" />
                         </div>
-                        <h2 className="text-2xl font-black text-gray-800">Selamat datang kembali!</h2>
-                        <p className="text-gray-500 font-medium text-sm mt-2">Masuk untuk melanjutkan ke KoleksiKas</p>
+                        <h2 className="text-2xl font-black text-gray-900 tracking-tight">Portal Admin</h2>
+                        <p className="text-gray-500 font-medium text-xs mt-1.5">Masuk untuk mengelola komunitas Anda.</p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-6">
+                    <form onSubmit={handleLogin} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
+                            <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Email Terdaftar</label>
+                            <div className="relative group">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-kas-primary transition-colors"><Mail className="w-4 h-4" /></span>
                                 <input 
                                     name="email" 
+                                    type="email" 
                                     value={formData.email} 
                                     onChange={handleChange} 
-                                    type="email" 
-                                    className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-kas-primary focus:ring-1 focus:ring-kas-primary outline-none transition-all font-medium text-gray-700 bg-gray-50 focus:bg-white" 
-                                    placeholder="Masukkan email Anda" 
-                                    required 
+                                    required
+                                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-kas-primary focus:ring-4 focus:ring-kas-primary/10 outline-none transition-all font-bold text-gray-800 text-sm"
+                                    placeholder="admin@komunitas.com" 
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Kata Sandi</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                </div>
+                            <div className="flex justify-between items-center mb-1.5">
+                                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest">Kata Sandi</label>
+                                <Link to="/auth/forgot-password" className="text-[11px] font-bold text-kas-primary hover:text-kas-dark transition-colors">Lupa sandi?</Link>
+                            </div>
+                            <div className="relative group">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-kas-primary transition-colors"><ShieldCheck className="w-4 h-4" /></span>
                                 <input 
                                     name="password" 
+                                    type={showPassword ? "text" : "password"} 
                                     value={formData.password} 
                                     onChange={handleChange} 
-                                    type={showPassword ? "text" : "password"} 
-                                    className="w-full pl-11 pr-12 py-3.5 rounded-xl border border-gray-200 focus:border-kas-primary focus:ring-1 focus:ring-kas-primary outline-none transition-all font-medium text-gray-700 bg-gray-50 focus:bg-white" 
-                                    placeholder="Masukkan kata sandi Anda" 
-                                    required 
+                                    required
+                                    className="w-full pl-11 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:border-kas-primary focus:ring-4 focus:ring-kas-primary/10 outline-none transition-all font-bold text-gray-800 text-sm"
+                                    placeholder="••••••••" 
                                 />
                                 <button 
-                                    type="button"
+                                    type="button" 
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-kas-primary transition-colors"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                                 >
-                                    {showPassword ? (
-                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                    ) : (
-                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" /></svg>
-                                    )}
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                             </div>
                         </div>
 
-                        <div className="flex justify-end">
-                            <Link to="/auth/forgot-password" className="text-sm font-bold text-kas-primary hover:text-kas-dark transition-colors">
-                                Lupa kata sandi?
-                            </Link>
-                        </div>
-
-                        <button type="submit" disabled={isLoading} className="w-full py-3.5 bg-kas-primary hover:bg-kas-dark text-white rounded-xl font-bold shadow-lg shadow-kas-primary/20 transition-all active:scale-95 disabled:opacity-70">
-                            {isLoading ? 'Memeriksa...' : 'Masuk'}
+                        <button 
+                            type="submit" 
+                            disabled={isLoading} 
+                            className="w-full py-3.5 bg-kas-primary hover:bg-kas-dark text-white rounded-xl font-black flex items-center justify-center gap-2 shadow-lg shadow-kas-primary/30 transition-all active:scale-95 disabled:opacity-70 mt-2 text-sm"
+                        >
+                            {isLoading ? 'Memeriksa...' : <>Masuk Dashboard <ArrowRight className="w-4 h-4" /></>}
                         </button>
                     </form>
 
-                    <div className="mt-8 text-center">
-                        <p className="text-gray-500 font-medium text-sm">
-                            Belum punya akun? <Link to="/mitra/register" className="text-kas-primary font-bold hover:underline">Daftar di sini</Link>
+                    <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+                        <p className="text-gray-500 font-medium text-xs">
+                            Belum mendaftar sebagai Mitra? <br className="sm:hidden" />
+                            <Link to="/mitra/register" className="text-kas-primary font-black hover:underline mt-1 sm:mt-0 sm:ml-1 inline-block">Daftar sekarang</Link>
                         </p>
                     </div>
 

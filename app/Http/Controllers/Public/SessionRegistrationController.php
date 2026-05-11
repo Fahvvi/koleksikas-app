@@ -200,4 +200,43 @@ class SessionRegistrationController extends Controller
             return response()->json(['message' => 'Error Server: ' . $e->getMessage()], 500);
         }
     }
+
+    public function getPublicSessions()
+    {
+        try {
+            // Ambil sesi yang is_public = true, masih aktif, dan waktunya belum lewat
+            $sessions = \App\Models\Session::with(['group'])
+                ->where('is_public', true)
+                ->where('status', 'active')
+                ->where('scheduled_at', '>=', now()) // Hanya tampilkan jadwal masa depan
+                ->orderBy('scheduled_at', 'asc')
+                ->get()
+                ->map(function ($session) {
+                    // Hitung jumlah peserta yang sudah lunas
+                    $paidCount = \App\Models\BillItem::whereHas('bill', function($q) use ($session) {
+                        $q->where('session_id', $session->id);
+                    })->where('status', 'paid')->count();
+
+                    return [
+                        'id' => $session->id,
+                        'name' => $session->name,
+                        'type' => $session->type,
+                        'location' => $session->location,
+                        'region' => $session->region, // Pastikan kolom ini ada di database
+                        'scheduled_at' => $session->scheduled_at,
+                        'price' => $session->price,
+                        'max_participants' => $session->max_participants,
+                        'participants_count' => $paidCount,
+                        'group' => [
+                            'name' => $session->group->name ?? 'Komunitas'
+                        ]
+                    ];
+                });
+
+            return response()->json(['success' => true, 'data' => $sessions]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal memuat sesi: ' . $e->getMessage()], 500);
+        }
+    }
+    
 }

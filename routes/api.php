@@ -22,11 +22,15 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 Route::prefix('v1')->group(function () {
     
     // PUBLIC ROUTES
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login', [\App\Http\Controllers\Auth\AuthController::class, 'login']);
+    Route::post('/auth/request-otp', [\App\Http\Controllers\Auth\AuthController::class, 'requestOtp']);
+    Route::post('/auth/verify-otp', [\App\Http\Controllers\Auth\AuthController::class, 'verifyOtp']);
     Route::get('/sessions/{session}/join/{user}', [\App\Http\Controllers\Admin\SessionController::class, 'joinAndPay']);
     Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
     Route::get('/sessions/{sessionId}/qris', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'getQris']);
     Route::post('/public/transactions/{id}/mark-paid', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'markAsPaid']);
+    Route::get('/public/sessions', [\App\Http\Controllers\Public\SessionRegistrationController::class, 'getPublicSessions']); 
+
     // Alur Mitra Baru (Sesuai routes.md)
     Route::post('/mitra/register', [MitraRegisterController::class, 'register']);
     Route::post('/mitra/activate', [MitraRegisterController::class, 'activate']);
@@ -157,6 +161,10 @@ Route::prefix('v1')->group(function () {
             
         
         // USER / MEMBER ROUTES...
+
+        Route::get('/user/history', [\App\Http\Controllers\User\MemberController::class, 'history']);
+        Route::put('/user/profile', [\App\Http\Controllers\User\MemberController::class, 'updateProfile']);
+
     });
 });
 

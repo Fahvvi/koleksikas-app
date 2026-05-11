@@ -122,6 +122,7 @@ export default function DashboardLayout() {
         { name: 'Mitra List', path: '/super-admin/mitras'},
         { name: 'License Tiers', path: '/super-admin/license-tiers'},
         { name: 'Payouts', path: '/super-admin/payout'},
+        { name: 'User Management', path: '/super-admin/users'},
         { name: 'System Logs', path: '/super-admin/system-logs'},
         { name: 'Global Settings', path: '/super-admin/global-settings'},
     ] : [

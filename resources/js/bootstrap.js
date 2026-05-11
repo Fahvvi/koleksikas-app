@@ -3,6 +3,7 @@ window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.headers.common['Accept'] = 'application/json'; // <-- Tambahkan ini
+window.axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
 
 axios.interceptors.request.use(function (config) {

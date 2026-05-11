@@ -12,8 +12,15 @@ class WahaService
 
     public function __construct()
     {
-        $this->baseUrl = config('services.waha.base_url', env('WAHA_BASE_URL'));
-        $this->apiKey = config('services.waha.api_key', env('WAHA_API_KEY'));
+        // 1. Coba ambil dari tabel Global Settings dulu
+        $globalUrl = \App\Models\GlobalSetting::where('key', 'waha_endpoint')->first();
+        
+        // 2. Jika di database ada, pakai itu. Jika tidak ada, baru fallback ke .env
+        $this->baseUrl = ($globalUrl && !empty($globalUrl->value)) 
+                            ? $globalUrl->value 
+                            : env('WAHA_BASE_URL', 'http://127.0.0.1:3000');
+                            
+        $this->apiKey = env('WAHA_API_KEY'); // API Key tetap di .env demi keamanan
     }
 
     public function send(string $to, string $message, string $session = 'default'): array

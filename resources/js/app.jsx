@@ -34,6 +34,7 @@ import SuperAdminLicenseTiers from './views/superadmin/LicenseTiers.jsx';
 import SuperAdminSystemLogs from './views/superadmin/SystemLogs.jsx';
 import SuperAdminGlobalSettings from './views/superadmin/GlobalSettings.jsx';
 import SuperAdminPayout from './views/superadmin/Payout.jsx';
+import SuperAdminUsers from './views/superadmin/Users.jsx';
 
 // ==========================================
 // 4. IMPORT ADMIN (MITRA/TENANT) VIEWS
@@ -54,7 +55,9 @@ import AdminFinance from './views/admin/Finance.jsx';
 // import UserDashboard from './views/user/Dashboard.jsx';
 // import UserBills from './views/user/Bills.jsx';
 // import UserPayment from './views/user/Payment.jsx';
-import UserProfile from './views/shared/Profile.jsx';
+import SharedProfile from './views/shared/Profile.jsx';
+import UserHistory from './views/user/UserHistory';
+import UserProfile from './views/user/UserProfile';
 
 
 // ==========================================
@@ -111,7 +114,7 @@ function App() {
                 <Route element={<DashboardLayout />}>
 
                     {/* AREA BERSAMA (Bisa diakses super_admin & admin) */}
-                    <Route path="/profile" element={<UserProfile />} />
+                    <Route path="/profile" element={<SharedProfile />} />
                     
                     {/* ========================================= */}
                     {/* AREA SUPER ADMIN (Hanya untuk super_admin) */}
@@ -123,6 +126,7 @@ function App() {
                         <Route path="/super-admin/system-logs" element={<SuperAdminSystemLogs />} />
                         <Route path="/super-admin/global-settings" element={<SuperAdminGlobalSettings />} />
                         <Route path="/super-admin/payout" element={<SuperAdminPayout />} />
+                        <Route path="/super-admin/users" element={<SuperAdminUsers />} />
                         {/* <Route path="/super-admin/tenants" element={<SuperAdminTenants />} /> */}
                     </Route>
 
@@ -150,6 +154,8 @@ function App() {
                     <Route path="/user/bills" element={<UserBills />} />
                     <Route path="/user/bills/:id/pay" element={<UserPayment />} />
                 </Route> */}
+                <Route path="/user/history" element={<UserHistory />} />
+                <Route path="/user/profile" element={<UserProfile />} />
 
                 
                 {/* --- FALLBACK 404 --- */}

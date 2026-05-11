@@ -15,7 +15,7 @@ class SuperAdminSeeder extends Seeder
             'id' => Str::uuid(),
             'name' => 'Super Admin',
             'email' => 'admin@koleksikas.app',
-            'password' => Hash::make('password123'), // Ganti dengan password yang lebih aman nanti
+            'password' => 'password123', 
             'role' => 'super_admin',
             'email_verified_at' => now(),
         ]);

@@ -4,42 +4,48 @@ import { motion } from "framer-motion";
 import {
   CheckCircle2, Users, Zap, Clock, MessageSquare, CreditCard,
   Globe, Shield, BarChart3, ArrowRight, Sparkles, Rocket, Star,
-  Search, MapPin // 👈 Tambahan Icon
+  Search, MapPin
 } from "lucide-react";
 
+import { AuroraBackground } from '../../components/AuroraBackground'; 
+import { TextHoverEffect } from '../../components/TextHoverEffect';
+import { FadeText } from '../../components/FadeText';
+
 export default function LandingPage() {
-  const navigate = useNavigate(); // 👈 Tambahan untuk fungsi tombol Cari
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-kas-bg font-sans text-kas-dark selection:bg-kas-accent selection:text-kas-dark overflow-hidden">
       
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-kas-bg/80 backdrop-blur-xl z-50 border-b border-kas-accent/30 shadow-sm">
+      {/* ========================================== */}
+      {/* NAVIGATION */}
+      {/* ========================================== */}
+      <nav className="fixed top-0 w-full bg-kas-dark/40 backdrop-blur-lg z-50 border-b border-white/20 shadow-md transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-kas-primary to-kas-soft rounded-xl blur-md opacity-40 animate-pulse"></div>
-                <CreditCard className="w-8 h-8 text-kas-primary relative transform rotate-12" />
+          <div className="flex justify-between items-center h-16 md:h-20">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="relative transform scale-75 md:scale-100">
+                <div className="absolute inset-0 bg-gradient-to-br from-kas-accent to-kas-primary rounded-xl blur-md opacity-60 animate-pulse"></div>
+                <CreditCard className="w-8 h-8 text-white relative transform rotate-12" />
               </div>
-              <span className="font-black text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-kas-primary to-kas-dark">
+              <span className="font-black text-xl md:text-2xl tracking-tight text-white drop-shadow-md">
                 KoleksiKAS.
               </span>
             </div>
             
             <div className="hidden md:flex gap-8 items-center">
-              <Link to="/explore" className="text-kas-primary font-black hover:text-kas-dark transition-colors flex items-center gap-2">
+              <Link to="/explore" className="text-white font-bold hover:text-kas-accent transition-colors flex items-center gap-2 drop-shadow-sm">
                 <MapPin className="w-4 h-4" /> Cari Mabar
               </Link>
-              <a href="#solusi" className="text-kas-dark/70 hover:text-kas-primary font-bold transition-colors">Solusi</a>
-              <a href="#fitur" className="text-kas-dark/70 hover:text-kas-primary font-bold transition-colors">Fitur</a>
+              <a href="#solusi" className="text-white/80 hover:text-white font-bold transition-colors drop-shadow-sm">Solusi</a>
+              <a href="#fitur" className="text-white/80 hover:text-white font-bold transition-colors drop-shadow-sm">Fitur</a>
             </div>
 
-            <div className="flex items-center gap-4">
-              <Link to="/auth/login" className="hidden sm:block text-kas-dark/80 hover:text-kas-primary font-bold transition-colors">
+            <div className="flex items-center gap-3 md:gap-4">
+              <Link to="/auth/login" className="hidden sm:block text-white hover:text-kas-accent font-bold transition-colors drop-shadow-sm text-sm md:text-base">
                 Login Admin
               </Link>
-              <Link to="/mitra/register" className="bg-gradient-to-r from-kas-primary via-kas-soft to-kas-primary bg-[length:200%_auto] hover:bg-right text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-kas-primary/20 transition-all transform hover:-translate-y-0.5">
+              <Link to="/mitra/register" className="bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white hover:text-kas-dark px-4 py-2 md:px-6 md:py-2.5 rounded-lg md:rounded-xl font-bold shadow-lg transition-all transform hover:-translate-y-0.5 text-sm md:text-base">
                 Jadi Mitra
               </Link>
             </div>
@@ -47,76 +53,83 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-40 pb-20 px-4 relative">
-        <div className="absolute top-32 left-10 w-40 h-40 bg-gradient-to-br from-kas-primary to-kas-accent rounded-full opacity-20 blur-3xl animate-float"></div>
-        <div className="absolute top-60 right-10 w-56 h-56 bg-gradient-to-bl from-kas-soft to-kas-primary rounded-full opacity-10 blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
+      {/* ========================================== */}
+      {/* HERO SECTION (AURORA DEEP) */}
+      {/* ========================================== */}
+      <div className="relative bg-kas-dark">
+        <AuroraBackground className="w-full" showRadialGradient={true}>
+          
+          <div className="absolute inset-0 bg-kas-dark/40 z-0 pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center max-w-5xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-kas-accent/40 to-transparent px-5 py-2.5 rounded-full mb-8 border border-kas-primary/20 backdrop-blur-sm">
-              <Sparkles className="w-5 h-5 text-kas-primary" />
-              <span className="text-kas-dark font-bold text-sm tracking-wide">Platform Kelola Iuran & Komunitas #1</span>
-            </div>
+          {/* pt-28 untuk mobile, pt-32 untuk desktop */}
+          <div className="max-w-7xl mx-auto relative z-10 w-full pt-28 md:pt-32 pb-16 px-4">
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center max-w-5xl mx-auto flex flex-col items-center">
+              
+              <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 md:px-5 md:py-2.5 rounded-full mb-6 md:mb-8 border border-white/20 backdrop-blur-md shadow-lg max-w-full overflow-hidden">
+                <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-kas-accent flex-shrink-0" />
+                <span className="text-white font-bold text-xs md:text-sm tracking-wide truncate">Platform Kelola Iuran & Komunitas #1</span>
+              </div>
 
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-8 leading-[1.1] tracking-tight">
-              <span className="text-kas-dark">Tagih Tanpa Baper.</span>
-              <br />
-              <span className="bg-gradient-to-r from-kas-primary via-kas-dark to-kas-soft bg-clip-text text-transparent">
-                Lunas Otomatis.
-              </span>
-            </h1>
-
-            <p className="text-xl md:text-2xl text-kas-dark/70 mb-12 leading-relaxed max-w-3xl mx-auto">
-              Tinggalkan cara lama menagih iuran di grup WhatsApp. <br />
-              <span className="font-black text-kas-primary">Bot WA + QRIS Instan = Rekap Bebas Stres.</span>
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-5 justify-center">
-              <Link to="/mitra/register" className="group relative bg-gradient-to-r from-kas-primary to-kas-dark text-white px-10 py-4 rounded-2xl text-lg font-black shadow-2xl shadow-kas-primary/30 transition-all transform hover:-translate-y-1 hover:scale-105 overflow-hidden">
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  Daftar Sebagai Mitra
-                  <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+              {/* Ukuran font responsif */}
+              <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-6 md:mb-8 leading-[1.15] md:leading-[1.1] tracking-tight">
+                <span className="text-white drop-shadow-md">Tagih Tanpa Baper.</span>
+                <br />
+                <span className="bg-gradient-to-r from-kas-soft via-kas-accent to-white bg-clip-text text-transparent drop-shadow-sm">
+                  Lunas Otomatis.
                 </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-kas-dark to-kas-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </Link>
+              </h1>
 
-              <button onClick={() => navigate('/explore')} className="relative bg-white text-kas-dark px-10 py-4 rounded-2xl text-lg font-black border-2 border-kas-accent hover:border-kas-primary hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2">
-                <Search className="w-5 h-5" /> Cari Mabar Olahraga
-              </button>
-            </div>
+              <p className="text-lg md:text-xl lg:text-2xl text-white/80 mb-8 md:mb-12 leading-relaxed max-w-3xl mx-auto font-medium px-2">
+                Tinggalkan cara lama menagih iuran di grup WhatsApp. <br className="hidden sm:block" />
+                <span className="font-black text-kas-accent drop-shadow-md">Bot WA + QRIS Instan = Rekap Bebas Stres.</span>
+              </p>
 
-            {/* Social Proof */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-16">
-              <div className="flex -space-x-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="w-12 h-12 rounded-full bg-gradient-to-br from-kas-accent to-kas-bg border-4 border-white shadow-md flex items-center justify-center text-xl">👤</div>
-                ))}
+              {/* Tombol responsif: stack di mobile, sebaris di desktop */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center w-full px-4 sm:px-0">
+                <Link to="/mitra/register" className="w-full sm:w-auto group relative bg-white text-kas-primary px-8 md:px-10 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-base md:text-lg font-black shadow-2xl transition-all transform hover:-translate-y-1 hover:scale-105 overflow-hidden flex items-center justify-center gap-2">
+                  Daftar Sebagai Mitra
+                  <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform" />
+                </Link>
+
+                <button onClick={() => navigate('/explore')} className="w-full sm:w-auto relative bg-white/10 text-white px-8 md:px-10 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-base md:text-lg font-bold border border-white/20 hover:bg-white/20 backdrop-blur-md transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 shadow-lg">
+                  <Search className="w-5 h-5 text-kas-accent" /> Cari Mabar Olahraga
+                </button>
               </div>
-              <div className="text-left">
-                <div className="flex gap-1 mb-1">
-                  {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />)}
+
+              {/* Social Proof */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 mt-12 md:mt-16 pb-4">
+                <div className="flex -space-x-3 md:-space-x-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-kas-dark border-2 border-kas-soft shadow-xl flex items-center justify-center text-lg md:text-xl">👤</div>
+                  ))}
                 </div>
-                <p className="text-kas-dark/70 font-medium text-sm">
-                  Dipercaya <span className="font-black text-kas-primary">500+</span> komunitas seluruh Indonesia
-                </p>
+                <div className="text-center sm:text-left">
+                  <div className="flex gap-1 mb-1 justify-center sm:justify-start">
+                    {[1, 2, 3, 4, 5].map((i) => <Star key={i} className="w-3 h-3 md:w-4 md:h-4 fill-kas-accent text-kas-accent drop-shadow-sm" />)}
+                  </div>
+                  <p className="text-white/80 font-medium text-xs md:text-sm">
+                    Dipercaya <span className="font-black text-white">500+</span> komunitas seluruh Indonesia
+                  </p>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+            </motion.div>
+          </div>
+        </AuroraBackground>
+      </div>
 
-      {/* 👇 SEKSI BARU: CARI MABAR PREVIEW 👇 */}
-      <section className="py-16 px-4 bg-kas-primary/5 border-y border-kas-primary/10">
-        <div className="max-w-5xl mx-auto">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-white p-8 rounded-[2rem] shadow-xl border border-kas-accent/50 flex flex-col md:flex-row items-center gap-8 justify-between">
+      {/* ========================================== */}
+      {/* SEKSI CARI MABAR (TERANG) */}
+      {/* ========================================== */}
+      <section className="py-12 md:py-16 px-4 bg-kas-bg relative">
+        <div className="max-w-5xl mx-auto -mt-16 md:-mt-24 relative z-20">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="bg-white p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-xl md:shadow-2xl border border-gray-100 flex flex-col md:flex-row items-center gap-6 md:gap-8 justify-between text-center md:text-left">
             <div>
-              <h3 className="text-3xl font-black text-kas-dark mb-2">Pemain Lepas (Freelance)?</h3>
-              <p className="text-kas-dark/70 font-medium">Temukan jadwal Open Play / Mabar olahraga di sekitarmu, daftar, dan bayar otomatis!</p>
+              <h3 className="text-2xl md:text-3xl font-black text-kas-dark mb-2">Pemain Lepas (Freelance)?</h3>
+              <p className="text-kas-dark/70 font-medium text-sm md:text-base">Temukan jadwal Open Play / Mabar olahraga di sekitarmu, daftar, dan bayar otomatis!</p>
             </div>
             <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3">
-                <input type="text" placeholder="Cth: Bogor, Jakarta..." className="px-5 py-3 rounded-xl border border-gray-200 focus:border-kas-primary outline-none bg-gray-50 min-w-[200px]" />
-                <button onClick={() => navigate('/explore')} className="bg-kas-dark text-white px-6 py-3 rounded-xl font-bold hover:bg-kas-primary transition-colors flex items-center justify-center gap-2 shadow-lg">
+                <input type="text" placeholder="Cth: Bogor, Jakarta..." className="w-full px-5 py-3 md:py-3.5 rounded-xl border border-gray-200 focus:border-kas-primary outline-none bg-gray-50 min-w-[200px] text-sm md:text-base" />
+                <button onClick={() => navigate('/explore')} className="w-full sm:w-auto bg-kas-dark text-white px-6 py-3 md:py-3.5 rounded-xl font-bold hover:bg-kas-primary transition-colors flex items-center justify-center gap-2 shadow-lg text-sm md:text-base">
                     <Search className="w-5 h-5" /> Cari
                 </button>
             </div>
@@ -125,37 +138,37 @@ export default function LandingPage() {
       </section>
 
       {/* Problem-Solution Section */}
-      <section id="solusi" className="py-24 px-4 relative bg-white border-b border-kas-accent/30">
+      <section id="solusi" className="py-16 md:py-24 px-4 relative bg-gray-50">
         <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-16">
-            <span className="text-kas-soft font-black tracking-wider text-sm mb-3 block uppercase">Cara Lama vs KoleksiKAS</span>
-            <h2 className="text-4xl md:text-5xl font-black mb-5">
+          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-12 md:mb-16">
+            <span className="text-kas-soft font-black tracking-wider text-xs md:text-sm mb-3 block uppercase">Cara Lama vs KoleksiKAS</span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4 md:mb-5 leading-tight">
               <span className="text-kas-dark">Tinggalkan Cara Lama yang </span>
               <span className="bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">Melelahkan</span>
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-10 max-w-6xl mx-auto">
-            <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="relative bg-red-50/50 p-8 md:p-10 rounded-[2rem] border-2 border-red-100 h-full hover:shadow-lg transition-shadow">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-14 h-14 bg-red-100 text-red-500 rounded-2xl flex items-center justify-center text-2xl font-black">❌</div>
-                  <h3 className="text-2xl font-black text-kas-dark">Masalah Saat Ini</h3>
+          <div className="grid md:grid-cols-2 gap-8 md:gap-10 max-w-6xl mx-auto">
+            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="relative bg-white p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] border border-gray-200 shadow-sm h-full hover:shadow-lg transition-shadow">
+                <div className="flex items-center gap-4 mb-6 md:mb-8">
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-red-50 text-red-500 rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl font-black border border-red-100 flex-shrink-0">❌</div>
+                  <h3 className="text-xl md:text-2xl font-black text-kas-dark">Masalah Saat Ini</h3>
                 </div>
-                <div className="space-y-5">
+                <div className="space-y-4 md:space-y-5">
                   {["Menagih iuran satu per satu di grup WhatsApp", "Anggota lupa bayar karena obrolan tenggelam", "Cek mutasi rekening manual berjam-jam", "Rekap data tercecer di Excel dan Notes", "Rasa sungkan / baper saat menagih teman sendiri"].map((item, i) => (
-                    <div key={i} className="flex items-start gap-4"><span className="text-red-400 mt-1">✕</span><span className="text-kas-dark/80 font-medium">{item}</span></div>
+                    <div key={i} className="flex items-start gap-3 md:gap-4"><span className="text-red-400 mt-1 font-bold text-sm md:text-base">✕</span><span className="text-kas-dark/80 font-medium text-sm md:text-base">{item}</span></div>
                   ))}
                 </div>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="relative bg-white p-8 md:p-10 rounded-[2rem] shadow-2xl shadow-kas-primary/10 border-2 border-kas-accent h-full group hover:-translate-y-1 transition-transform">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-14 h-14 bg-gradient-to-br from-kas-primary to-kas-dark text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"><Rocket className="w-7 h-7" /></div>
-                  <h3 className="text-2xl font-black bg-gradient-to-r from-kas-primary to-kas-dark bg-clip-text text-transparent">Solusi KoleksiKAS</h3>
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="relative bg-white p-6 md:p-10 rounded-[1.5rem] md:rounded-[2rem] shadow-xl md:shadow-2xl shadow-kas-primary/10 border-2 border-kas-soft h-full group hover:-translate-y-1 transition-transform">
+                <div className="flex items-center gap-4 mb-6 md:mb-8">
+                  <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-kas-primary to-kas-dark text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform flex-shrink-0"><Rocket className="w-6 h-6 md:w-7 md:h-7" /></div>
+                  <h3 className="text-xl md:text-2xl font-black bg-gradient-to-r from-kas-primary to-kas-dark bg-clip-text text-transparent">Solusi KoleksiKAS</h3>
                 </div>
-                <div className="space-y-5">
+                <div className="space-y-3 md:space-y-5">
                   {["Broadcast tagihan massal via Bot WhatsApp", "Member bayar instan pakai QRIS Otomatis", "Sistem otomatis deteksi dan tandai 'Lunas'", "Laporan keuangan rapi di Dashboard Real-time", "Notifikasi pengingat terkirim otomatis"].map((item, i) => (
-                    <div key={i} className="flex items-start gap-4 p-3 bg-kas-bg/50 rounded-xl hover:bg-kas-accent/20 transition-colors"><CheckCircle2 className="w-6 h-6 text-kas-primary flex-shrink-0" /><span className="text-kas-dark font-bold">{item}</span></div>
+                    <div key={i} className="flex items-start gap-3 md:gap-4 p-2.5 md:p-3 bg-kas-primary/5 rounded-lg md:rounded-xl hover:bg-kas-primary/10 transition-colors"><CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-kas-primary flex-shrink-0" /><span className="text-kas-dark font-bold text-sm md:text-base">{item}</span></div>
                   ))}
                 </div>
             </motion.div>
@@ -164,14 +177,15 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="fitur" className="py-24 px-4 bg-kas-bg relative">
+      <section id="fitur" className="py-16 md:py-24 px-4 bg-white relative border-t border-gray-100">
         <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-16">
-            <span className="text-kas-soft font-black tracking-wider text-sm mb-3 block uppercase">FITUR UNGGULAN</span>
-            <h2 className="text-4xl md:text-5xl font-black text-kas-dark">Semua yang Komunitasmu Butuhkan</h2>
+          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-12 md:mb-16">
+            <span className="text-kas-soft font-black tracking-wider text-xs md:text-sm mb-3 block uppercase">FITUR UNGGULAN</span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-kas-dark leading-tight">Semua yang Komunitasmu Butuhkan</h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          {/* grid-cols-1 di mobile, lalu membesar sesuai layar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
             {[
               { icon: MessageSquare, title: "Bot WA Otomatis", desc: "Broadcast tagihan, pengingat, dan struk lunas langsung ke nomor WA member.", color: "from-kas-primary to-kas-soft" },
               { icon: CreditCard, title: "QRIS Payment Gateway", desc: "Dukung pembayaran instan. Verifikasi lunas otomatis tanpa cek mutasi.", color: "from-kas-dark to-kas-primary" },
@@ -181,12 +195,12 @@ export default function LandingPage() {
               { icon: Shield, title: "Aman & Transparan", desc: "Riwayat pembayaran tersimpan di Cloud. Bebas dari salah catat.", color: "from-gray-700 to-kas-dark" }
             ].map((feature, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={{ y: -5 }} className="relative group">
-                <div className="relative bg-white p-8 rounded-3xl shadow-sm border border-kas-accent/50 group-hover:border-kas-primary/30 transition-all h-full z-10">
-                  <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mb-6 shadow-md transform group-hover:rotate-6 transition-transform`}>
-                    <feature.icon className="w-7 h-7 text-white" />
+                <div className="relative bg-gray-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-3xl shadow-sm border border-gray-100 group-hover:border-kas-primary/30 group-hover:shadow-xl transition-all h-full z-10">
+                  <div className={`w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br ${feature.color} rounded-xl md:rounded-2xl flex items-center justify-center mb-5 md:mb-6 shadow-md transform group-hover:rotate-6 transition-transform`}>
+                    <feature.icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
                   </div>
-                  <h3 className="text-xl font-black text-kas-dark mb-3">{feature.title}</h3>
-                  <p className="text-kas-dark/60 font-medium leading-relaxed text-sm">{feature.desc}</p>
+                  <h3 className="text-lg md:text-xl font-black text-kas-dark mb-2 md:mb-3">{feature.title}</h3>
+                  <p className="text-kas-dark/60 font-medium leading-relaxed text-xs md:text-sm">{feature.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -194,45 +208,102 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* CTA SECTION (AURORA) */}
+      <div className="relative bg-kas-dark">
+        <AuroraBackground className="py-16 md:py-24 px-4 w-full min-h-[50vh] md:min-h-[60vh]" showRadialGradient={false}>
+          <div className="absolute inset-0 bg-kas-dark/40 z-0 pointer-events-none"></div>
 
-      {/* CTA Section (Full Brand Colors) */}
-            <section className="py-24 px-4 relative overflow-hidden">
-              {/* Background Gradients */}
-              <div className="absolute inset-0 bg-kas-dark"></div>
-              <div className="absolute inset-0 bg-gradient-to-br from-kas-primary/80 via-kas-dark to-kas-soft/50"></div>
+          <div className="max-w-4xl mx-auto text-center relative z-10 w-full">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}>
+              <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white mb-4 md:mb-6 leading-tight drop-shadow-lg px-2">
+                Siap Mengubah Cara Komunitasmu Berjalan?
+              </h2>
+              <p className="text-base sm:text-lg md:text-xl text-white/80 mb-8 md:mb-10 font-medium max-w-2xl mx-auto drop-shadow-sm px-4">
+                Bergabunglah bersama ratusan ketua komunitas yang sudah merasakan tenangnya menagih tanpa baper.
+              </p>
               
-              {/* Abstract shapes */}
-              <div className="absolute -top-24 -right-24 w-96 h-96 bg-kas-primary rounded-full blur-3xl opacity-50 animate-pulse"></div>
-              <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-kas-soft rounded-full blur-3xl opacity-30 animate-pulse" style={{ animationDelay: '1.5s' }}></div>
-      
-              <div className="max-w-4xl mx-auto text-center relative z-10">
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}>
-                  <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight drop-shadow-lg">
-                    Siap Mengubah Cara Komunitasmu Berjalan?
-                  </h2>
-                  <p className="text-xl text-white/80 mb-10 font-medium max-w-2xl mx-auto">
-                    Bergabunglah bersama ratusan ketua komunitas yang sudah merasakan tenangnya menagih tanpa baper.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
-                    <Link to="/mitra/register" className="w-full sm:w-auto bg-white text-kas-primary px-10 py-4 rounded-2xl text-xl font-black hover:shadow-xl hover:scale-105 transition-all shadow-kas-dark/50">
-                      Mulai Gratis Sekarang
-                    </Link>
-                    <Link to="/auth/login" className="w-full sm:w-auto px-10 py-4 rounded-2xl text-xl font-bold text-white border-2 border-white/30 hover:bg-white/10 backdrop-blur-sm transition-colors">
-                      Login Admin
-                    </Link>
-                  </div>
-                </motion.div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full px-4 sm:px-0">
+                <Link to="/mitra/register" className="w-full sm:w-auto bg-white text-kas-primary px-8 md:px-10 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-base md:text-xl font-black hover:shadow-xl hover:scale-105 transition-all shadow-kas-dark/50 flex justify-center">
+                  Mulai Gratis Sekarang
+                </Link>
+                <Link to="/auth/login" className="w-full sm:w-auto px-8 md:px-10 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-base md:text-xl font-bold text-white border border-white/30 hover:bg-white/10 backdrop-blur-sm transition-colors flex justify-center">
+                  Login Admin
+                </Link>
               </div>
-            </section>
+            </motion.div>
+          </div>
+        </AuroraBackground>
+      </div>
 
       {/* Footer */}
-      <footer className="bg-kas-dark text-white/60 py-12 px-4 border-t border-white/10 relative z-20">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-kas-primary to-kas-soft rounded-lg flex items-center justify-center"><CreditCard className="w-5 h-5 text-white" /></div>
-            <span className="font-black text-white text-xl tracking-tight">KoleksiKAS.</span>
+      <footer className="relative bg-white text-kas-dark overflow-hidden border-t border-gray-100 z-20 font-sans">
+        
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-8 md:pb-10">
+          {/* Ubah menjadi grid 1 kolom di HP agar tidak hancur */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 md:gap-12 mb-12 md:mb-16">
+            
+            {/* KOLOM 1: BRAND */}
+            <div className="col-span-1 sm:col-span-2 md:col-span-1 space-y-4 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-kas-primary to-kas-soft rounded-xl flex items-center justify-center shadow-md">
+                  <CreditCard className="w-6 h-6 text-white" />
+                </div>
+                <span className="font-black text-2xl tracking-tight text-kas-dark">
+                  KoleksiKAS.
+                </span>
+              </div>
+              <p className="text-sm text-kas-dark/70 leading-relaxed mx-auto sm:mx-0 max-w-[280px] font-medium">
+                Platform kelola iuran komunitas #1 di Indonesia. Aman, Transparan, & Lunas Otomatis.
+              </p>
+            </div>
+
+            {/* KOLOM 2: SISTEM */}
+            <div className="space-y-4 md:space-y-5 text-center sm:text-left">
+              <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Eksplorasi</h4>
+              <ul className="space-y-3 text-sm font-semibold">
+                <li><a href="#solusi" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Solusi Masalah</a></li>
+                <li><a href="#fitur" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Fitur Unggulan</a></li>
+                <li><Link to="/explore" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Cari Mabar/Event</Link></li>
+                <li><Link to="/mitra/register" className="text-kas-primary hover:text-kas-dark font-bold transition-colors">Daftar Mitra</Link></li>
+              </ul>
+            </div>
+
+            {/* KOLOM 3: LEGAL & PEMBAYARAN */}
+            <div className="space-y-4 md:space-y-5 text-center sm:text-left">
+              <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Informasi Hukum</h4>
+              <ul className="space-y-3 text-sm font-semibold">
+                <li><Link to="/legal/syarat-ketentuan" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Syarat & Ketentuan</Link></li>
+                <li><Link to="/legal/kebijakan-privasi" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Kebijakan Privasi</Link></li>
+                <li><Link to="/legal/kebijakan-withdraw" className="text-kas-dark/80 hover:text-kas-primary transition-colors inline-flex items-center gap-1.5 justify-center sm:justify-start"> Kebijakan Penarikan</Link></li>
+                <li><a href="#" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Laporan Keamanan</a></li>
+              </ul>
+            </div>
+
+            {/* KOLOM 4: HUBUNGI KAMI */}
+            <div className="space-y-4 md:space-y-5 text-center sm:text-left">
+              <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Dikembangkan Oleh</h4>
+              <div className="space-y-1 md:space-y-2">
+                 <p className="font-extrabold text-kas-dark">RootanRoo Digital</p>
+                 <p className="text-xs text-kas-dark/60 font-medium">Cileungsi, Bogor, Jawa Barat</p>
+              </div>
+              <ul className="space-y-3 text-sm font-semibold">
+                <li><a href="mailto:support@rootanroo.com" className="text-kas-dark/80 hover:text-kas-primary transition-colors inline-flex items-center gap-2 tracking-tight justify-center sm:justify-start">📧 support@rootanroo.com</a></li>
+                <li><a href="mailto:partnership@rootanroo.com" className="text-kas-dark/80 hover:text-kas-primary transition-colors inline-flex items-center gap-2 tracking-tight justify-center sm:justify-start">🤝 partnership@rootanroo.com</a></li>
+              </ul>
+            </div>
           </div>
-          <p className="text-sm font-medium text-center">© 2026 KoleksiKAS by RootanRoo Digital. Platform Iuran & Mabar Terpercaya.</p>
+
+          {/* Area Utama Fade Text Effect */}
+          <div className="relative w-full mt-6 md:mt-10 -mb-4 md:-mb-10 overflow-hidden pointer-events-none">
+             <FadeText text="KOLEKSIKAS" />
+          </div>
+
+          {/* Sub-Footer (Copyright) */}
+          <div className="border-t border-gray-100 pt-6 md:pt-8 mt-4 text-center">
+             <p className="text-[10px] md:text-xs font-bold text-kas-dark/50">
+              © {new Date().getFullYear()} KoleksiKAS by RootanRoo Digital. Platform Terpercaya.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
