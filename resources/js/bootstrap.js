@@ -13,6 +13,25 @@ axios.interceptors.request.use(function (config) {
         config.headers.Authorization = `Bearer ${token}`;
     }
 
+    window.axios.interceptors.response.use(
+    (response) => response, // Biarkan jika response sukses (200)
+    (error) => {
+        // Jika Backend menolak karena Token Kedaluwarsa/Tidak Valid (401 Unauthorized)
+            if (error.response && error.response.status === 401) {
+                
+                // 1. Hapus data sensitif dari penyimpanan browser
+                localStorage.removeItem('user');
+                localStorage.removeItem('token'); // Sesuaikan nama key-nya
+                
+                // 2. Usir kembali ke halaman login (Kecuali jika memang sedang di halaman login)
+                if (window.location.pathname !== '/auth/login' && window.location.pathname !== '/user/login') {
+                    window.location.href = '/auth/login?session_expired=true';
+                }
+            }
+            return Promise.reject(error);
+        }
+    );
+
     // 2. Ambil slug tenant (wajib untuk routes Mitra)
     const tenantSlug = localStorage.getItem('tenant_slug');
     if (tenantSlug) {
@@ -20,6 +39,7 @@ axios.interceptors.request.use(function (config) {
     }
 
     return config;
+    
 }, function (error) {
     return Promise.reject(error);
 });

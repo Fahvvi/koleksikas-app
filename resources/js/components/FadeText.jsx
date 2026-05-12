@@ -30,7 +30,7 @@ export const FadeText = ({ text, className }) => {
       
       <text
         x="50%"
-        y="45%" /* Agak dinaikkan sedikit ke atas */
+        y="60%" /* Agak dinaikkan sedikit ke atas */
         textAnchor="middle"
         dominantBaseline="middle"
         fontSize="150" /* Ukuran font absolut SVG */

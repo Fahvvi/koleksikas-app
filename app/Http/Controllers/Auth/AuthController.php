@@ -62,9 +62,6 @@ class AuthController extends Controller
     // =======================================================
     // REQUEST OTP (Khusus User/Member)
     // =======================================================
-    // =======================================================
-    // REQUEST OTP (Bisa untuk Register atau Forgot Password)
-    // =======================================================
     public function requestOtp(\Illuminate\Http\Request $request)
     {
         $request->validate([
@@ -105,6 +102,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Gagal mengirim OTP via WhatsApp. Pastikan bot aktif.'], 500);
         }
 
+        // 🛡️ AMAN: Tidak ada lagi debug_code yang diekspos ke frontend!
         return response()->json(['success' => true, 'message' => 'OTP berhasil dikirim ke WhatsApp Anda.']);
     }
 
@@ -124,20 +122,45 @@ class AuthController extends Controller
         $phone = preg_replace('/[^0-9]/', '', $request->phone_wa);
         if (substr($phone, 0, 1) === '0') $phone = '62' . substr($phone, 1);
 
+        // ==========================================================
+        // 🛡️ KEAMANAN: BRUTE-FORCE LOCKOUT LOGIC (Max 5x per 15 Menit)
+        // ==========================================================
+        $limiterKey = 'otp_attempts_' . $phone;
+
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($limiterKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($limiterKey);
+            $minutes = ceil($seconds / 60);
+            return response()->json([
+                'message' => "Akses diblokir sementara karena terlalu banyak percobaan gagal. Coba lagi dalam {$minutes} menit."
+            ], 429); // 429: Too Many Requests
+        }
+
         // Cek Cache OTP
         $cachedOtp = \Illuminate\Support\Facades\Cache::get('otp_' . $phone);
+        
         if (!$cachedOtp || $cachedOtp != $request->otp) {
-            return response()->json(['message' => 'Kode OTP tidak valid atau sudah kedaluwarsa.'], 400);
+            // Hitung kegagalan ke dalam RateLimiter (Durasi pemblokiran: 900 detik / 15 Menit)
+            \Illuminate\Support\Facades\RateLimiter::hit($limiterKey, 900);
+            
+            $attemptsLeft = 5 - \Illuminate\Support\Facades\RateLimiter::attempts($limiterKey);
+            
+            return response()->json([
+                'message' => "Kode OTP salah atau sudah kedaluwarsa. Sisa percobaan: {$attemptsLeft}x"
+            ], 400);
         }
+
+        // Jika OTP benar, bersihkan catatan kegagalan dari RateLimiter
+        \Illuminate\Support\Facades\RateLimiter::clear($limiterKey);
 
         // EKSEKUSI BERDASARKAN TIPE
         if ($request->type === 'register') {
             $userId = (string) \Illuminate\Support\Str::uuid();
+            $uniqueSuffix = substr($userId, 0, 6);
             // Bypass Double Hash & Email Null Error menggunakan Raw Query
             \Illuminate\Support\Facades\DB::table('users')->insert([
                 'id' => $userId,
                 'name' => $request->name,
-                'email' => $phone . '@member.koleksikas', // Dummy email agar aman dari unique constraint
+                'email' => "{$phone}_{$uniqueSuffix}@member.koleksikas", // Dummy email agar aman dari unique constraint
                 'phone_wa' => $phone,
                 'password' => \Illuminate\Support\Facades\Hash::make($request->password),
                 'role' => 'user',

@@ -9,6 +9,7 @@ use App\Models\SystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache; // 👈 Tambahan untuk menarik Password dari Memory
 use App\Jobs\WA\SendWaMemberConfirmJob;
 
 class PaymentWebhookController extends Controller
@@ -81,8 +82,12 @@ class PaymentWebhookController extends Controller
                         $tier = \App\Models\LicenseTier::where('slug', $payloadData['tier_slug'])->first();
                         
                         if ($mitra && $tier && $mitra->status !== 'active') {
+                            
+                            // 👇 FIX SECURITY: Tarik Password Hash dari Cache & Langsung Hapus dari Memory 👇
+                            $hashedPassword = Cache::pull("mitra_activation_{$transaction->id}");
+
                             $registerController = new \App\Http\Controllers\MitraRegisterController();
-                            $registerController->executeActivation($mitra, $tier, $payloadData['password_hash']);
+                            $registerController->executeActivation($mitra, $tier, $hashedPassword);
                         }
                     } else {
                         // LOGIKA NORMAL IURAN MEMBER
@@ -122,7 +127,6 @@ class PaymentWebhookController extends Controller
         }
     }
 
-    // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
     // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
     private function resolvePaymentConfig($tenantId)
     {

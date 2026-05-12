@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { motion } from "framer-motion";
 import {
   CheckCircle2, Users, Zap, Clock, MessageSquare, CreditCard,
@@ -11,11 +12,137 @@ import { AuroraBackground } from '../../components/AuroraBackground';
 import { TextHoverEffect } from '../../components/TextHoverEffect';
 import { FadeText } from '../../components/FadeText';
 
-export default function LandingPage() {
-  const navigate = useNavigate();
+// ==========================================
+// KOMPONEN PRICING CARD (GLOW & ROTATING BORDER)
+// ==========================================
+const CheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
+function PricingCard({ tier, index }) {
+  // Parsing Fitur dari JSON API agar tidak ada string aneh (basic_report, dll)
+  let parsedFeatures = [];
+  try {
+      let parsed = typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features;
+      
+      // Kamus translasi agar bahasa mesin berubah jadi bahasa marketing
+      const featureLabels = {
+          'wa_group_notif': 'Notifikasi WhatsApp Group',
+          'wa_bot_bill': 'Tagihan otomatis via WA Bot',
+          'export_pdf': 'Export PDF Laporan Absensi',
+          'finance_recap': 'Rekap keuangan komunitas',
+          'qris': 'Pembayaran QRIS Otomatis',
+          'wa_personal': 'Kirim Pesan WA Personal',
+          'wa_group': 'Kirim Pesan WA ke Grup',
+          'multi_admin': 'Dukungan Multi-Admin',
+          'export': 'Export Data Excel & PDF',
+          'custom_wa_template': 'Kustomisasi Pesan WA Bot',
+          'auto_recap': 'Rekapitulasi Kas Otomatis',
+          'allowed_gateways': 'Bebas Pilih Payment Gateway',
+          'basic_report': 'Laporan Analitik Komprehensif'
+      };
+
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          // Ambil fitur yang bernilai true / 1
+          parsedFeatures = Object.keys(parsed)
+              .filter(k => parsed[k] === true || parsed[k] === 1 || parsed[k] === '1')
+              .map(k => featureLabels[k] || k.replace(/_/g, ' ')); // Fallback hapus underscore
+      } else if (Array.isArray(parsed)) {
+          parsedFeatures = parsed.map(k => featureLabels[k] || k.replace(/_/g, ' '));
+      }
+  } catch (e) {
+      parsedFeatures = [tier.features];
+  }
+
+  // Gabungkan dengan limit grup bawaan database
+  const allFeatures = [
+      `Maksimal ${tier.max_groups} Grup`,
+      `${tier.max_members_per_group} Member / Grup`,
+      ...parsedFeatures
+  ];
+
+  const isPopular = index === 1; // Asumsi paket tengah yang ditekankan
 
   return (
-    <div className="min-h-screen bg-kas-bg font-sans text-kas-dark selection:bg-kas-accent selection:text-kas-dark overflow-hidden">
+    <div className={`relative flex flex-col h-full rounded-[2rem] p-8 md:p-10 transition-all duration-300 ${
+      isPopular
+        ? 'bg-white border-2 border-kas-primary shadow-2xl shadow-kas-primary/20 transform md:-translate-y-4 z-20'
+        : 'bg-white/5 border border-white/10 hover:border-white/20 backdrop-blur-md text-white z-10'
+    }`}>
+
+      {/* Badge Paling Diminati */}
+      {isPopular && (
+        <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2">
+          <span className="bg-kas-primary text-white text-[11px] font-black tracking-widest px-4 py-2 rounded-full shadow-lg flex items-center gap-1.5 whitespace-nowrap">
+            <Star className="w-3.5 h-3.5 fill-white" /> PALING DIMINATI
+          </span>
+        </div>
+      )}
+
+      {/* Header Info */}
+      <div className="mb-8 border-b border-gray-500/20 pb-8">
+        <h3 className={`text-2xl font-black mb-2 ${isPopular ? 'text-kas-dark' : 'text-white'}`}>{tier.name}</h3>
+        <p className={`text-sm font-medium ${isPopular ? 'text-gray-500' : 'text-white/50'}`}>
+          {tier.price == 0 ? 'Mulai kelola tanpa biaya' : 'Untuk komunitas skala besar'}
+        </p>
+      </div>
+
+      {/* Harga */}
+      <div className="mb-8">
+        <div className="flex items-end gap-2">
+          <span className={`text-4xl md:text-5xl font-black tracking-tight ${isPopular ? 'text-kas-primary' : 'text-white'}`}>
+            {tier.price == 0 ? 'Gratis' : `Rp ${new Intl.NumberFormat('id-ID').format(tier.price)}`}
+          </span>
+        </div>
+        {tier.price > 0 && <p className={`text-sm font-bold mt-2 ${isPopular ? 'text-gray-400' : 'text-white/40'}`}>/ sekali bayar selamanya</p>}
+      </div>
+
+      {/* List Fitur */}
+      <ul className={`space-y-5 text-sm font-medium flex-grow mb-10 ${isPopular ? 'text-gray-600' : 'text-white/70'}`}>
+        {allFeatures.map((feature, idx) => (
+          <li key={idx} className="flex items-start gap-3">
+            <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${isPopular ? 'text-kas-primary' : 'text-kas-accent'}`} />
+            <span className="leading-snug capitalize capitalize-first">{feature}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* Tombol CTA */}
+      <div className="mt-auto">
+        <Link to="/mitra/register" className={`w-full py-4 rounded-xl font-black flex items-center justify-center transition-all ${
+          isPopular
+            ? 'bg-kas-primary hover:bg-kas-dark text-white shadow-xl shadow-kas-primary/30'
+            : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+        }`}>
+          {tier.price == 0 ? 'Mulai Gratis' : 'Pilih Paket Ini'}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+
+// ==========================================
+// HALAMAN UTAMA
+// ==========================================
+export default function LandingPage() {
+  const navigate = useNavigate();
+  const [tiers, setTiers] = useState([]);
+
+  // Ambil Data Pricing dari API
+  useEffect(() => {
+      axios.get('/api/v1/public/license-tiers')
+          .then(res => {
+              if (res.data && Array.isArray(res.data.data)) {
+                  setTiers(res.data.data.filter(t => t.is_active == true));
+              }
+          }).catch(err => console.error("Gagal load pricing", err));
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-kas-bg font-sans text-kas-dark selection:bg-kas-accent selection:text-kas-dark overflow-x-hidden">
       
       {/* ========================================== */}
       {/* NAVIGATION */}
@@ -39,6 +166,7 @@ export default function LandingPage() {
               </Link>
               <a href="#solusi" className="text-white/80 hover:text-white font-bold transition-colors drop-shadow-sm">Solusi</a>
               <a href="#fitur" className="text-white/80 hover:text-white font-bold transition-colors drop-shadow-sm">Fitur</a>
+              <a href="#harga" className="text-white/80 hover:text-white font-bold transition-colors drop-shadow-sm">Harga</a>
             </div>
 
             <div className="flex items-center gap-3 md:gap-4">
@@ -54,14 +182,11 @@ export default function LandingPage() {
       </nav>
 
       {/* ========================================== */}
-      {/* HERO SECTION (AURORA DEEP) */}
+      {/* HERO SECTION */}
       {/* ========================================== */}
       <div className="relative bg-kas-dark">
         <AuroraBackground className="w-full" showRadialGradient={true}>
-          
           <div className="absolute inset-0 bg-kas-dark/40 z-0 pointer-events-none"></div>
-
-          {/* pt-28 untuk mobile, pt-32 untuk desktop */}
           <div className="max-w-7xl mx-auto relative z-10 w-full pt-28 md:pt-32 pb-16 px-4">
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center max-w-5xl mx-auto flex flex-col items-center">
               
@@ -70,7 +195,6 @@ export default function LandingPage() {
                 <span className="text-white font-bold text-xs md:text-sm tracking-wide truncate">Platform Kelola Iuran & Komunitas #1</span>
               </div>
 
-              {/* Ukuran font responsif */}
               <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black mb-6 md:mb-8 leading-[1.15] md:leading-[1.1] tracking-tight">
                 <span className="text-white drop-shadow-md">Tagih Tanpa Baper.</span>
                 <br />
@@ -84,7 +208,6 @@ export default function LandingPage() {
                 <span className="font-black text-kas-accent drop-shadow-md">Bot WA + QRIS Instan = Rekap Bebas Stres.</span>
               </p>
 
-              {/* Tombol responsif: stack di mobile, sebaris di desktop */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center w-full px-4 sm:px-0">
                 <Link to="/mitra/register" className="w-full sm:w-auto group relative bg-white text-kas-primary px-8 md:px-10 py-3.5 md:py-4 rounded-xl md:rounded-2xl text-base md:text-lg font-black shadow-2xl transition-all transform hover:-translate-y-1 hover:scale-105 overflow-hidden flex items-center justify-center gap-2">
                   Daftar Sebagai Mitra
@@ -96,7 +219,6 @@ export default function LandingPage() {
                 </button>
               </div>
 
-              {/* Social Proof */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 mt-12 md:mt-16 pb-4">
                 <div className="flex -space-x-3 md:-space-x-4">
                   {[1, 2, 3, 4, 5].map((i) => (
@@ -175,40 +297,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Features Grid */}
-      <section id="fitur" className="py-16 md:py-24 px-4 bg-white relative border-t border-gray-100">
-        <div className="max-w-7xl mx-auto relative z-10">
-          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-12 md:mb-16">
-            <span className="text-kas-soft font-black tracking-wider text-xs md:text-sm mb-3 block uppercase">FITUR UNGGULAN</span>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-kas-dark leading-tight">Semua yang Komunitasmu Butuhkan</h2>
-          </motion.div>
-
-          {/* grid-cols-1 di mobile, lalu membesar sesuai layar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
-            {[
-              { icon: MessageSquare, title: "Bot WA Otomatis", desc: "Broadcast tagihan, pengingat, dan struk lunas langsung ke nomor WA member.", color: "from-kas-primary to-kas-soft" },
-              { icon: CreditCard, title: "QRIS Payment Gateway", desc: "Dukung pembayaran instan. Verifikasi lunas otomatis tanpa cek mutasi.", color: "from-kas-dark to-kas-primary" },
-              { icon: Users, title: "Arisan & Mabar", desc: "Kelola Event Mudah. Buat jadwal, atur kuota, dan harga tiket masuk.", color: "from-kas-primary to-kas-dark" },
-              { icon: Globe, title: "Sesi Open Play", desc: "Buat tagihan publik. Tampil otomatis di halaman Eksplor Mabar KoleksiKAS.", color: "from-kas-soft to-kas-primary" },
-              { icon: BarChart3, title: "Laporan Kas Real-time", desc: "Pantau uang masuk, penunggak, dan total saldo kas dari dashboard admin.", color: "from-kas-primary via-kas-dark to-kas-primary" },
-              { icon: Shield, title: "Aman & Transparan", desc: "Riwayat pembayaran tersimpan di Cloud. Bebas dari salah catat.", color: "from-gray-700 to-kas-dark" }
-            ].map((feature, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={{ y: -5 }} className="relative group">
-                <div className="relative bg-gray-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-3xl shadow-sm border border-gray-100 group-hover:border-kas-primary/30 group-hover:shadow-xl transition-all h-full z-10">
-                  <div className={`w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br ${feature.color} rounded-xl md:rounded-2xl flex items-center justify-center mb-5 md:mb-6 shadow-md transform group-hover:rotate-6 transition-transform`}>
-                    <feature.icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                  </div>
-                  <h3 className="text-lg md:text-xl font-black text-kas-dark mb-2 md:mb-3">{feature.title}</h3>
-                  <p className="text-kas-dark/60 font-medium leading-relaxed text-xs md:text-sm">{feature.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA SECTION (AURORA) */}
+      
+      {/* 3. CTA SECTION (GELAP / AURORA) */}
       <div className="relative bg-kas-dark">
         <AuroraBackground className="py-16 md:py-24 px-4 w-full min-h-[50vh] md:min-h-[60vh]" showRadialGradient={false}>
           <div className="absolute inset-0 bg-kas-dark/40 z-0 pointer-events-none"></div>
@@ -235,14 +325,78 @@ export default function LandingPage() {
         </AuroraBackground>
       </div>
 
+      {/* Features Grid */}
+      <section id="fitur" className="py-16 md:py-24 px-4 bg-white relative border-t border-gray-100">
+        <div className="max-w-7xl mx-auto relative z-10">
+          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-12 md:mb-16">
+            <span className="text-kas-soft font-black tracking-wider text-xs md:text-sm mb-3 block uppercase">FITUR UNGGULAN</span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-kas-dark leading-tight">Semua yang Komunitasmu Butuhkan</h2>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
+            {[
+              { icon: MessageSquare, title: "Bot WA Otomatis", desc: "Broadcast tagihan, pengingat, dan struk lunas langsung ke nomor WA member.", color: "from-kas-primary to-kas-soft" },
+              { icon: CreditCard, title: "QRIS Payment Gateway", desc: "Dukung pembayaran instan. Verifikasi lunas otomatis tanpa cek mutasi.", color: "from-kas-dark to-kas-primary" },
+              { icon: Users, title: "Arisan & Mabar", desc: "Kelola Event Mudah. Buat jadwal, atur kuota, dan harga tiket masuk.", color: "from-kas-primary to-kas-dark" },
+              { icon: Globe, title: "Sesi Open Play", desc: "Buat tagihan publik. Tampil otomatis di halaman Eksplor Mabar KoleksiKAS.", color: "from-kas-soft to-kas-primary" },
+              { icon: BarChart3, title: "Laporan Kas Real-time", desc: "Pantau uang masuk, penunggak, dan total saldo kas dari dashboard admin.", color: "from-kas-primary via-kas-dark to-kas-primary" },
+              { icon: Shield, title: "Aman & Transparan", desc: "Riwayat pembayaran tersimpan di Cloud. Bebas dari salah catat.", color: "from-gray-700 to-kas-dark" }
+            ].map((feature, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} whileHover={{ y: -5 }} className="relative group">
+                <div className="relative bg-gray-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-3xl shadow-sm border border-gray-100 group-hover:border-kas-primary/30 group-hover:shadow-xl transition-all h-full z-10">
+                  <div className={`w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br ${feature.color} rounded-xl md:rounded-2xl flex items-center justify-center mb-5 md:mb-6 shadow-md transform group-hover:rotate-6 transition-transform`}>
+                    <feature.icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-black text-kas-dark mb-2 md:mb-3">{feature.title}</h3>
+                  <p className="text-kas-dark/60 font-medium leading-relaxed text-xs md:text-sm">{feature.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================== */}
+      {/* SEKSI HARGA (PRICING) - NEW! */}
+      {/* ========================================== */}
+      <section id="harga" className="py-20 md:py-32 bg-kas-dark relative border-t border-white/10">
+        
+        {/* Subtle Glow di belakang agar tidak terlalu polos */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] h-[800px] bg-kas-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          <div className="text-center mb-16 md:mb-20">
+            <span className="text-kas-accent font-black tracking-widest text-xs md:text-sm mb-3 block uppercase">PILIHAN LISENSI</span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight mb-4 drop-shadow-md">
+              Mulai dengan <span className="bg-gradient-to-r from-kas-soft via-kas-accent to-white bg-clip-text text-transparent drop-shadow-sm">
+                  Rp1.000
+                </span>, Tumbuh Tanpa Batas
+            </h2>
+            <p className="text-white/60 font-medium text-lg max-w-2xl mx-auto">
+              Tidak ada biaya langganan bulanan. Bayar sekali dan miliki sistem ini untuk komunitas Anda selamanya.
+            </p>
+          </div>
+
+          {tiers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 items-stretch justify-center max-w-6xl mx-auto">
+              {tiers.map((tier, index) => (
+                <PricingCard key={tier.id} tier={tier} index={index} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 text-white/50 font-bold text-xl animate-pulse">
+              Mengambil Data Paket Lisensi...
+            </div>
+          )}
+        </div>
+      </section>
+
+
       {/* Footer */}
       <footer className="relative bg-white text-kas-dark overflow-hidden border-t border-gray-100 z-20 font-sans">
-        
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-8 md:pb-10">
-          {/* Ubah menjadi grid 1 kolom di HP agar tidak hancur */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 md:gap-12 mb-12 md:mb-16">
             
-            {/* KOLOM 1: BRAND */}
             <div className="col-span-1 sm:col-span-2 md:col-span-1 space-y-4 text-center sm:text-left">
               <div className="flex items-center justify-center sm:justify-start gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-kas-primary to-kas-soft rounded-xl flex items-center justify-center shadow-md">
@@ -257,7 +411,6 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* KOLOM 2: SISTEM */}
             <div className="space-y-4 md:space-y-5 text-center sm:text-left">
               <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Eksplorasi</h4>
               <ul className="space-y-3 text-sm font-semibold">
@@ -268,18 +421,16 @@ export default function LandingPage() {
               </ul>
             </div>
 
-            {/* KOLOM 3: LEGAL & PEMBAYARAN */}
             <div className="space-y-4 md:space-y-5 text-center sm:text-left">
               <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Informasi Hukum</h4>
               <ul className="space-y-3 text-sm font-semibold">
-                <li><Link to="/legal/syarat-ketentuan" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Syarat & Ketentuan</Link></li>
-                <li><Link to="/legal/kebijakan-privasi" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Kebijakan Privasi</Link></li>
-                <li><Link to="/legal/kebijakan-withdraw" className="text-kas-dark/80 hover:text-kas-primary transition-colors inline-flex items-center gap-1.5 justify-center sm:justify-start"> Kebijakan Penarikan</Link></li>
-                <li><a href="#" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Laporan Keamanan</a></li>
+                <li><Link to="/legal#syarat-ketentuan" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Syarat & Ketentuan</Link></li>
+                <li><Link to="/legal#kebijakan-privasi" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Kebijakan Privasi</Link></li>
+                <li><Link to="/legal#kebijakan-penarikan" className="text-kas-dark/80 hover:text-kas-primary transition-colors inline-flex items-center gap-1.5 justify-center sm:justify-start"> Kebijakan Penarikan</Link></li>
+                <li><Link to="/legal#laporan-keamanan" className="text-kas-dark/80 hover:text-kas-primary transition-colors">Laporan Keamanan</Link></li>
               </ul>
             </div>
 
-            {/* KOLOM 4: HUBUNGI KAMI */}
             <div className="space-y-4 md:space-y-5 text-center sm:text-left">
               <h4 className="font-black text-kas-dark uppercase tracking-wider text-sm">Dikembangkan Oleh</h4>
               <div className="space-y-1 md:space-y-2">
@@ -293,15 +444,13 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Area Utama Fade Text Effect */}
           <div className="relative w-full mt-6 md:mt-10 -mb-4 md:-mb-10 overflow-hidden pointer-events-none">
              <FadeText text="KOLEKSIKAS" />
           </div>
 
-          {/* Sub-Footer (Copyright) */}
           <div className="border-t border-gray-100 pt-6 md:pt-8 mt-4 text-center">
              <p className="text-[10px] md:text-xs font-bold text-kas-dark/50">
-              © {new Date().getFullYear()} KoleksiKAS by RootanRoo Digital. Platform Terpercaya.
+              © {new Date().getFullYear()} KoleksiKAS by RootanRoo Digital. buat Sistem Kamu bersama kami!
             </p>
           </div>
         </div>

@@ -8,7 +8,7 @@ use App\Http\Controllers\SuperAdmin\LicenseTierController;
 use App\Http\Controllers\SuperAdmin\SystemHealthController;
 use App\Http\Controllers\SuperAdmin\GlobalSettingController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
-use App\Http\Controllers\SuperAdmin\UserController as SuperAdminUserController; // 👈 Tambahan Controller
+use App\Http\Controllers\SuperAdmin\UserController as SuperAdminUserController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Middleware\EnsureTenantMiddleware;
@@ -26,9 +26,9 @@ Route::prefix('v1')->group(function () {
     // ==========================================
     // PUBLIC ROUTES
     // ==========================================
-    Route::post('/auth/login', [AuthController::class, 'login']);
-    Route::post('/auth/request-otp', [AuthController::class, 'requestOtp']);
-    Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+    Route::post('/auth/request-otp', [AuthController::class, 'requestOtp'])->middleware('throttle:otp-request');
+    Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']); // Lockout ditangani di Controller
     Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
     
     // 👇 FIX #2: Keamanan Link Pembayaran (Magic Link Checkout) 👇
@@ -39,7 +39,8 @@ Route::prefix('v1')->group(function () {
         ->name('checkout.magiclink');
 
     Route::get('/sessions/{sessionId}/qris', [SessionRegistrationController::class, 'getQris']);
-    Route::post('/public/transactions/{id}/mark-paid', [SessionRegistrationController::class, 'markAsPaid']);
+    Route::post('/public/transactions/{id}/mark-paid', [SessionRegistrationController::class, 'markAsPaid'])
+        ->middleware('throttle:mark-paid');
     Route::get('/public/sessions', [SessionRegistrationController::class, 'getPublicSessions']); 
 
     // Alur Mitra Baru

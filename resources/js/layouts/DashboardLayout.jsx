@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Swal from 'sweetalert2'; // 👈 Tambahan Import SweetAlert
 
 // ========================================================
-// 1. KOMPONEN NOTIFIKASI (Ditambahkan di file yang sama)
+// 1. KOMPONEN NOTIFIKASI
 // ========================================================
 const NotificationBell = () => {
     const [notifs, setNotifs] = useState([]);
@@ -22,14 +23,12 @@ const NotificationBell = () => {
 
     useEffect(() => {
         fetchNotifs();
-        // Cek notifikasi baru setiap 30 detik secara otomatis
         const interval = setInterval(fetchNotifs, 30000);
         return () => clearInterval(interval);
     }, []);
 
     const markRead = async () => {
         setIsOpen(!isOpen);
-        // Jika dibuka dan ada yang belum dibaca, tandai sudah dibaca di database
         if (unreadCount > 0 && !isOpen) {
             try {
                 await axios.post('/api/v1/notifications/mark-read');
@@ -103,6 +102,10 @@ export default function DashboardLayout() {
     const location = useLocation();
     const navigate = useNavigate();
 
+    // 👇 TAMBAHAN: State & Ref untuk Idle Timer 👇
+    const timeoutRef = useRef(null);
+    const IDLE_TIMEOUT = 30 * 60 * 1000; // 30 Menit dalam Milidetik
+
     useEffect(() => {
         axios.get('/api/v1/user/profile')
             .then(res => {
@@ -114,6 +117,49 @@ export default function DashboardLayout() {
             })
             .catch(err => console.error("Gagal mengambil data user", err));
     }, []);
+
+    // 👇 TAMBAHAN: Logika Idle Timer 👇
+    const idleLogout = () => {
+        // Hapus token di backend tanpa menunggu response
+        axios.post('/api/v1/auth/logout').catch(() => {});
+        
+        // Bersihkan lokal
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+        
+        Swal.fire({
+            icon: 'info',
+            title: 'Sesi Berakhir',
+            text: 'Anda otomatis keluar karena tidak ada aktivitas selama 30 menit demi keamanan akun.',
+            confirmButtonColor: '#842A3B',
+            customClass: { popup: 'rounded-3xl' }
+        }).then(() => {
+            navigate('/auth/login', { replace: true });
+        });
+    };
+
+    const resetTimer = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(idleLogout, IDLE_TIMEOUT);
+    };
+
+    useEffect(() => {
+        resetTimer();
+
+        // Daftarkan sensor aktivitas
+        const events = ['mousemove', 'keydown', 'scroll', 'click'];
+        const handleActivity = () => resetTimer();
+
+        events.forEach(event => window.addEventListener(event, handleActivity));
+
+        // Bersihkan sensor saat komponen dilepas (unmount)
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            events.forEach(event => window.removeEventListener(event, handleActivity));
+        };
+    }, []);
+    // 👆 AKHIR LOGIKA IDLE TIMER 👆
 
     const isSuperAdmin = location.pathname.includes('/super-admin') || userData.role === 'super_admin';
 
@@ -140,6 +186,7 @@ export default function DashboardLayout() {
         } catch (e) {
             console.error(e);
         } finally {
+            localStorage.removeItem('user');
             localStorage.removeItem('token');
             delete axios.defaults.headers.common['Authorization'];
             navigate('/auth/login');
@@ -199,7 +246,6 @@ export default function DashboardLayout() {
                     {/* TOPBAR KANAN: NOTIFIKASI & PROFIL */}
                     <div className="flex items-center gap-3 md:gap-5">
                         
-                        {/* 👇 TOMBOL LONCENG NOTIFIKASI DISINI 👇 */}
                         <NotificationBell />
 
                         <div className="relative">

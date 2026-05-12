@@ -97,7 +97,19 @@ class SessionRegistrationController extends Controller
         try {
             $transaction = \Illuminate\Support\Facades\DB::table('transactions')->where('id', $transactionId)->first();
             if (!$transaction) return response()->json(['message' => 'Transaksi tidak valid.'], 404);
+            
+            // 👇 FIX: Cek jika sudah lunas
             if ($transaction->status === 'success') return response()->json(['message' => 'Tagihan sudah lunas'], 400);
+
+            // 👇 FIX: Cek jika sudah pernah minta konfirmasi agar tidak spam admin
+            if ($transaction->status === 'confirmation_requested') {
+                return response()->json(['message' => 'Konfirmasi sudah dikirim sebelumnya. Mohon tunggu Admin mengecek mutasi.'], 200);
+            }
+
+            // 👇 FIX: Ubah status menjadi 'confirmation_requested'
+            \Illuminate\Support\Facades\DB::table('transactions')
+                ->where('id', $transactionId)
+                ->update(['status' => 'confirmation_requested', 'updated_at' => now()]);
 
             $user = \Illuminate\Support\Facades\DB::table('users')->where('id', $transaction->user_id)->first();
             $userName = $user ? $user->name : 'Member';

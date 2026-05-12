@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache; // 👈 Wajib tambahkan ini untuk Keamanan
 
 class MitraRegisterController extends Controller
 {
@@ -58,7 +59,7 @@ class MitraRegisterController extends Controller
                 return $this->executeActivation($mitra, $tier, Hash::make($request->password));
             }
 
-            // JIKA BERBAYAR -> AMBIL CONFIG DARI GLOBAL SETTINGS (BUKAN PAYMENT CONFIG)
+            // JIKA BERBAYAR -> AMBIL CONFIG DARI GLOBAL SETTINGS
             $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
             $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
 
@@ -82,20 +83,24 @@ class MitraRegisterController extends Controller
 
             $mitra->update(['status' => 'pending_payment']);
 
-            // SIMPAN DATA SEMENTARA KE TRANSAKSI (AGAR BISA DIEKSEKUSI OLEH WEBHOOK NANTI)
+            // 👇 FIX SECURITY: Simpan Data Saja, Tanpa Password! 👇
             \App\Models\Transaction::create([
                 'id' => $transactionId,
-                'tenant_id' => null, // Karena belum punya tenant
+                'tenant_id' => null, 
                 'amount' => $tier->price,
                 'payment_url' => $charge['qr_code'],
                 'status' => 'pending',
                 'payload' => json_encode([
                     'type' => 'license_activation',
                     'mitra_id' => $mitra->id,
-                    'tier_slug' => $tier->slug,
-                    'password_hash' => Hash::make($request->password)
+                    'tier_slug' => $tier->slug
+                    // PASSWORD HASH TELAH DIHAPUS DARI SINI 🛡️
                 ])
             ]);
+
+            // 👇 PENGAMANAN BARU: Simpan Password di Memory (Cache) selama 2 Jam 👇
+            // Jika dalam 2 jam (QRIS expired) tidak ada pembayaran, password ini otomatis musnah.
+            Cache::put("mitra_activation_{$transactionId}", Hash::make($request->password), now()->addHours(2));
 
             return response()->json([
                 'success' => true,
@@ -110,7 +115,7 @@ class MitraRegisterController extends Controller
     }
 
     // Helper untuk Eksekusi (Dipanggil jika Gratis atau Jika Webhook Berhasil)
-    public function executeActivation($mitra, $tier, $hashedPassword) {
+    public function executeActivation($mitra, $tier, $hashedPassword = null) {
         $mitra->update(['status' => 'active']);
 
         $license = MitraLicense::create([
@@ -131,12 +136,16 @@ class MitraRegisterController extends Controller
             'status' => 'active'
         ]);
 
+        // JARING PENGAMAN: Jika Cache terhapus oleh server saking lamanya, 
+        // kita amankan dengan merandom password baru. User tinggal pakai fitur "Forgot Password".
+        $finalPassword = $hashedPassword ?? Hash::make(Str::random(16));
+
         $admin = User::create([
             'id' => Str::uuid(),
             'tenant_id' => $tenant->id,
             'name' => $mitra->name,
             'email' => $mitra->email,
-            'password' => $hashedPassword,
+            'password' => $finalPassword,
             'phone_wa' => $mitra->phone,
             'role' => 'admin'
         ]);
@@ -151,6 +160,7 @@ class MitraRegisterController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Aktivasi Berhasil!']);
     }
+
     public function checkStatus($id)
     {
         $mitra = Mitra::find($id);
@@ -158,6 +168,4 @@ class MitraRegisterController extends Controller
         
         return response()->json(['status' => $mitra->status]);
     }
-
-
 }
