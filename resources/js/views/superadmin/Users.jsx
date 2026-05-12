@@ -16,7 +16,7 @@ export default function SuperAdminUsers() {
         try {
             // Gunakan auth_token secara eksplisit jika Axios Interceptor gagal mengambilnya
             const token = localStorage.getItem('auth_token');
-            const response = await axios.get('/api/v1/superadmin/users', {
+            const response = await axios.get('/api/v1/super-admin/users', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
