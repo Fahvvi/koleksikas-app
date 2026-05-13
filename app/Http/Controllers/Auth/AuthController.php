@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter; // Memastikan import RateLimiter ada
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -16,8 +18,6 @@ class AuthController extends Controller
     {
         $loginField = $request->has('email') ? 'email' : 'phone_wa';
         $loginValue = $request->input($loginField);
-        
-        // Parameter role dikirim dari Frontend (React) untuk membedakan pintu masuk
         $requestedRole = $request->input('role'); 
 
         if (!$loginValue) {
@@ -26,25 +26,26 @@ class AuthController extends Controller
         
         $request->validate(['password' => 'required']);
 
-        // Format ulang nomor WA jika login menggunakan phone_wa
         if ($loginField === 'phone_wa') {
-            $loginValue = preg_replace('/[^0-9]/', '', $loginValue);
-            if (substr($loginValue, 0, 1) === '0') {
-                $loginValue = '62' . substr($loginValue, 1);
-            }
+            $phoneRaw = preg_replace('/[^0-9]/', '', $loginValue);
+            $phone62 = (substr($phoneRaw, 0, 1) === '0') ? '62' . substr($phoneRaw, 1) : $phoneRaw;
+            $loginValue = $phone62; // Menyamakan nilai pencarian
         }
 
-        $user = User::where($loginField, $loginValue)->first();
+        $userQuery = User::where($loginField, $loginValue);
+        
+        if ($requestedRole) {
+            $userQuery->where('role', $requestedRole);
+        }
+        
+        $user = $userQuery->first();
 
-        // 1. Verifikasi Eksistensi User & Password
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'message' => 'Kredensial tidak valid. Pastikan Email/Nomor WA dan Password benar.'
             ], 401);
         }
 
-        // 2. PROTEKSI TUMPANG TINDIH ROLE (Role Guard)
-        // Jika frontend meminta role tertentu, pastikan user memiliki role tersebut
         if ($requestedRole && $user->role !== $requestedRole) {
             return response()->json([
                 'message' => "Akses Ditolak! Akun Anda terdaftar sebagai '{$user->role}', bukan '{$requestedRole}'."
@@ -59,35 +60,31 @@ class AuthController extends Controller
         ]);
     }
 
-    // =======================================================
-    // REQUEST OTP (Khusus User/Member)
-    // =======================================================
-    public function requestOtp(\Illuminate\Http\Request $request)
+    public function requestOtp(Request $request)
     {
         $request->validate([
             'phone_wa' => 'required|string',
-            'type' => 'required|in:register,forgot' // Tipe OTP
+            'type' => 'required|in:register,forgot'
         ]);
         
-        $phone = preg_replace('/[^0-9]/', '', $request->phone_wa);
-        if (substr($phone, 0, 1) === '0') $phone = '62' . substr($phone, 1);
+        $phoneRaw = preg_replace('/[^0-9]/', '', $request->phone_wa);
+        $phone62 = (substr($phoneRaw, 0, 1) === '0') ? '62' . substr($phoneRaw, 1) : $phoneRaw;
 
-        $user = \App\Models\User::where('phone_wa', $phone)->first();
+        // Logika Single Identity (Hanya akan ada maksimal 1 user dengan nomor WA ini)
+        $user = User::where('phone_wa', $phone62)->first();
         
-        // Logika Pintar: Cek Bentrok Jalur
         if ($request->type === 'forgot') {
-            if (!$user || $user->role !== 'user') {
-                return response()->json(['message' => 'Nomor WhatsApp belum terdaftar. Silakan pilih menu Daftar Akun.'], 404);
+            if (!$user) {
+                return response()->json(['message' => 'Nomor WhatsApp belum terdaftar di sistem.'], 404);
             }
-        } else { // Jalur Register
+        } else {
             if ($user) {
                 return response()->json(['message' => 'Nomor WhatsApp sudah terdaftar! Silakan langsung Login atau gunakan Lupa Password.'], 400);
             }
         }
 
-        // Generate 8 Digit OTP
         $otp = (string) mt_rand(10000000, 99999999);
-        \Illuminate\Support\Facades\Cache::put('otp_' . $phone, $otp, now()->addMinutes(5));
+        Cache::put('otp_' . $phone62, $otp, now()->addMinutes(5));
 
         try {
             $waha = new \App\Services\WhatsApp\WahaService();
@@ -97,88 +94,75 @@ class AuthController extends Controller
                    . "Ini adalah kode rahasia untuk {$jenis} Anda:\n\n"
                    . "👉 *{$otp}*\n\n"
                    . "_Kode ini berlaku selama 5 menit. Jangan berikan kode ini kepada siapapun!_";
-            $waha->send($phone, $pesan);
+            $waha->send($phone62, $pesan);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal mengirim OTP via WhatsApp. Pastikan bot aktif.'], 500);
         }
 
-        // 🛡️ AMAN: Tidak ada lagi debug_code yang diekspos ke frontend!
         return response()->json(['success' => true, 'message' => 'OTP berhasil dikirim ke WhatsApp Anda.']);
     }
 
-    // =======================================================
-    // VERIFIKASI OTP (Mengeksekusi Register atau Reset Password)
-    // =======================================================
-    public function verifyOtp(\Illuminate\Http\Request $request)
+    public function verifyOtp(Request $request)
     {
         $request->validate([
             'phone_wa' => 'required|string',
             'otp' => 'required|string',
             'password' => 'required|string|min:6',
             'type' => 'required|in:register,forgot',
-            'name' => 'required_if:type,register|string' // Nama hanya wajib jika register
+            'name' => 'required_if:type,register|string'
         ]);
 
-        $phone = preg_replace('/[^0-9]/', '', $request->phone_wa);
-        if (substr($phone, 0, 1) === '0') $phone = '62' . substr($phone, 1);
+        $phoneRaw = preg_replace('/[^0-9]/', '', $request->phone_wa);
+        $phone62 = (substr($phoneRaw, 0, 1) === '0') ? '62' . substr($phoneRaw, 1) : $phoneRaw;
 
-        // ==========================================================
-        // 🛡️ KEAMANAN: BRUTE-FORCE LOCKOUT LOGIC (Max 5x per 15 Menit)
-        // ==========================================================
-        $limiterKey = 'otp_attempts_' . $phone;
+        $limiterKey = 'otp_attempts_' . $phone62;
 
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($limiterKey, 5)) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($limiterKey);
+        if (RateLimiter::tooManyAttempts($limiterKey, 5)) {
+            $seconds = RateLimiter::availableIn($limiterKey);
             $minutes = ceil($seconds / 60);
             return response()->json([
                 'message' => "Akses diblokir sementara karena terlalu banyak percobaan gagal. Coba lagi dalam {$minutes} menit."
-            ], 429); // 429: Too Many Requests
+            ], 429);
         }
 
-        // Cek Cache OTP
-        $cachedOtp = \Illuminate\Support\Facades\Cache::get('otp_' . $phone);
+        $cachedOtp = Cache::get('otp_' . $phone62);
         
         if (!$cachedOtp || $cachedOtp != $request->otp) {
-            // Hitung kegagalan ke dalam RateLimiter (Durasi pemblokiran: 900 detik / 15 Menit)
-            \Illuminate\Support\Facades\RateLimiter::hit($limiterKey, 900);
-            
-            $attemptsLeft = 5 - \Illuminate\Support\Facades\RateLimiter::attempts($limiterKey);
-            
+            RateLimiter::hit($limiterKey, 900);
+            $attemptsLeft = 5 - RateLimiter::attempts($limiterKey);
             return response()->json([
                 'message' => "Kode OTP salah atau sudah kedaluwarsa. Sisa percobaan: {$attemptsLeft}x"
             ], 400);
         }
 
-        // Jika OTP benar, bersihkan catatan kegagalan dari RateLimiter
-        \Illuminate\Support\Facades\RateLimiter::clear($limiterKey);
+        RateLimiter::clear($limiterKey);
 
-        // EKSEKUSI BERDASARKAN TIPE
         if ($request->type === 'register') {
-            $userId = (string) \Illuminate\Support\Str::uuid();
+            $userId = (string) Str::uuid();
             $uniqueSuffix = substr($userId, 0, 6);
-            // Bypass Double Hash & Email Null Error menggunakan Raw Query
-            \Illuminate\Support\Facades\DB::table('users')->insert([
+            
+            DB::table('users')->insert([
                 'id' => $userId,
                 'name' => $request->name,
-                'email' => "{$phone}_{$uniqueSuffix}@member.koleksikas", // Dummy email agar aman dari unique constraint
-                'phone_wa' => $phone,
-                'password' => \Illuminate\Support\Facades\Hash::make($request->password),
+                'email' => "{$phone62}_{$uniqueSuffix}@member.koleksikas", 
+                'phone_wa' => $phone62,
+                'password' => Hash::make($request->password),
                 'role' => 'user',
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-            $user = \App\Models\User::find($userId);
+            $user = User::find($userId);
         } else {
-            $user = \App\Models\User::where('phone_wa', $phone)->first();
+            // LUPA PASSWORD: Fokus pada 1 akun utama
+            $user = User::where('phone_wa', $phone62)->first();
             if (!$user) return response()->json(['message' => 'User tidak ditemukan.'], 404);
             
-            \Illuminate\Support\Facades\DB::table('users')->where('id', $user->id)->update([
-                'password' => \Illuminate\Support\Facades\Hash::make($request->password)
+            $user->update([
+                'password' => Hash::make($request->password)
             ]);
-            $user = \App\Models\User::find($user->id);
         }
         
-        \Illuminate\Support\Facades\Cache::forget('otp_' . $phone);
+        Cache::forget('otp_' . $phone62);
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

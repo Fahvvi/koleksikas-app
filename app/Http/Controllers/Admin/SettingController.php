@@ -126,4 +126,43 @@ class SettingController extends Controller
             ], 500);
         }
     }
+
+    public function updatePaymentConfig(Request $request)
+    {
+        $tenantId = $request->user()->tenant_id;
+        
+        $request->validate([
+            'provider' => 'required|in:koleksikas,static_qris',
+            'payload' => 'nullable|array'
+        ]);
+
+        // 👇 PROTEKSI: Cek Lisensi Mitra 👇
+        if ($request->provider === 'static_qris') {
+            $license = \App\Models\MitraLicense::with('tier')
+                ->where('mitra_id', $request->user()->tenant->mitra_id)
+                ->where('status', 'active')
+                ->first();
+
+            $tierSlug = $license->tier->slug ?? 'starter';
+
+            if ($tierSlug === 'starter') {
+                return response()->json([
+                    'message' => 'Paket Starter hanya mendukung KoleksiKAS Gateway. Silakan upgrade paket Anda untuk menggunakan QRIS Statis Pribadi.'
+                ], 403);
+            }
+        }
+
+        $config = \App\Models\PaymentConfig::updateOrCreate(
+            ['tenant_id' => $tenantId],
+            [
+                'id' => \Illuminate\Support\Str::uuid(),
+                'provider' => $request->provider,
+                'payload' => json_encode($request->payload),
+                'is_active' => true
+            ]
+        );
+
+        return response()->json(['success' => true, 'message' => 'Konfigurasi pembayaran berhasil disimpan.']);
+    }
+    
 }

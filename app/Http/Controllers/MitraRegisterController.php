@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache; // 👈 Wajib tambahkan ini untuk Keamanan
+use Illuminate\Support\Facades\Cache;
 
 class MitraRegisterController extends Controller
 {
@@ -26,11 +26,15 @@ class MitraRegisterController extends Controller
             'company_name' => 'required|string|max:255',
         ]);
 
+        // 👇 FIX SSO: Standarisasi nomor telepon ke format internasional (62) sejak awal mendaftar 👇
+        $phoneRaw = preg_replace('/[^0-9]/', '', $request->phone);
+        $phone62 = (substr($phoneRaw, 0, 1) === '0') ? '62' . substr($phoneRaw, 1) : $phoneRaw;
+
         $mitra = Mitra::create([
             'id' => Str::uuid(),
             'name' => $request->name,
             'email' => $request->email,
-            'phone' => $request->phone,
+            'phone' => $phone62, // Simpan format 62 agar seragam dengan tabel users
             'company_name' => $request->company_name,
             'status' => 'pending' 
         ]);
@@ -54,12 +58,10 @@ class MitraRegisterController extends Controller
             $mitra = Mitra::where('id', $request->mitra_id)->whereIn('status', ['pending', 'pending_payment'])->firstOrFail();
             $tier = LicenseTier::where('slug', $request->license_tier_slug)->firstOrFail();
 
-            // JIKA PAKET GRATIS (Price == 0) -> Langsung Aktifkan
             if ($tier->price == 0) {
                 return $this->executeActivation($mitra, $tier, Hash::make($request->password));
             }
 
-            // JIKA BERBAYAR -> AMBIL CONFIG DARI GLOBAL SETTINGS
             $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
             $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
 
@@ -83,7 +85,6 @@ class MitraRegisterController extends Controller
 
             $mitra->update(['status' => 'pending_payment']);
 
-            // 👇 FIX SECURITY: Simpan Data Saja, Tanpa Password! 👇
             \App\Models\Transaction::create([
                 'id' => $transactionId,
                 'tenant_id' => null, 
@@ -94,12 +95,9 @@ class MitraRegisterController extends Controller
                     'type' => 'license_activation',
                     'mitra_id' => $mitra->id,
                     'tier_slug' => $tier->slug
-                    // PASSWORD HASH TELAH DIHAPUS DARI SINI 🛡️
                 ])
             ]);
 
-            // 👇 PENGAMANAN BARU: Simpan Password di Memory (Cache) selama 2 Jam 👇
-            // Jika dalam 2 jam (QRIS expired) tidak ada pembayaran, password ini otomatis musnah.
             Cache::put("mitra_activation_{$transactionId}", Hash::make($request->password), now()->addHours(2));
 
             return response()->json([
@@ -114,7 +112,6 @@ class MitraRegisterController extends Controller
         });
     }
 
-    // Helper untuk Eksekusi (Dipanggil jika Gratis atau Jika Webhook Berhasil)
     public function executeActivation($mitra, $tier, $hashedPassword = null) {
         $mitra->update(['status' => 'active']);
 
@@ -136,19 +133,32 @@ class MitraRegisterController extends Controller
             'status' => 'active'
         ]);
 
-        // JARING PENGAMAN: Jika Cache terhapus oleh server saking lamanya, 
-        // kita amankan dengan merandom password baru. User tinggal pakai fitur "Forgot Password".
         $finalPassword = $hashedPassword ?? Hash::make(Str::random(16));
 
-        $admin = User::create([
-            'id' => Str::uuid(),
-            'tenant_id' => $tenant->id,
-            'name' => $mitra->name,
-            'email' => $mitra->email,
-            'password' => $finalPassword,
-            'phone_wa' => $mitra->phone,
-            'role' => 'admin'
-        ]);
+        // 👇 FIX SSO: Logika Single Identity (Cari akun yang sudah ada sebelum bikin baru) 👇
+        $existingUser = User::where('phone_wa', $mitra->phone)->first();
+
+        if ($existingUser) {
+            // Jika dia sudah punya akun Member, UPGRADE akunnya jadi Admin Mitra!
+            $existingUser->update([
+                'tenant_id' => $tenant->id,
+                'role' => 'admin',
+                'password' => $finalPassword,
+                'email' => $mitra->email // Timpa email dummy dengan email asli mitra
+            ]);
+            $admin = $existingUser;
+        } else {
+            // Jika benar-benar baru, buat baris baru
+            $admin = User::create([
+                'id' => Str::uuid(),
+                'tenant_id' => $tenant->id,
+                'name' => $mitra->name,
+                'email' => $mitra->email,
+                'password' => $finalPassword,
+                'phone_wa' => $mitra->phone,
+                'role' => 'admin'
+            ]);
+        }
 
         PaymentConfig::create([
             'id' => Str::uuid(), 'tenant_id' => $tenant->id, 'provider' => 'koleksikas', 'payload' => json_encode([]), 'is_active' => true

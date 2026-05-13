@@ -9,7 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 // ==========================================
 import LandingPage from './views/public/LandingPage.jsx';
 import RegisterSession from './views/public/RegisterSession.jsx';
-import MitraRegister from './views/public/MitraRegister.jsx';
+// import MitraRegister from './views/public/MitraRegister.jsx';
 import Login from './views/auth/Login.jsx';
 import PaymentSuccess from './views/public/PaymentSuccess';
 import SetPassword from './views/auth/SetPassword';
@@ -18,6 +18,7 @@ import Checkout from './views/public/Checkout.jsx';
 import ExploreOpenPlay from './views/public/ExploreOpenPlay.jsx';
 import UserLogin from './views/auth/UserLogin.jsx';
 import LegalPage from './views/public/LegalPage.jsx';
+import ForgotPassword from './views/auth/ForgotPassword.jsx';
 
 // ==========================================
 // 2. IMPORT LAYOUTS
@@ -132,7 +133,7 @@ function App() {
                     {/* --- RUTE PUBLIK --- */}
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/sesi/:sessionId/daftar" element={<RegisterSession />} />
-                    <Route path="/mitra/register" element={<MitraRegister />} />
+                    <Route path="/mitra/register" element={<Login />} />
                     <Route path="/auth/login" element={<Login />} />
                     <Route path="/payment/success" element={<PaymentSuccess />} />
                     <Route path="/auth/set-password" element={<SetPassword />} />
@@ -141,6 +142,7 @@ function App() {
                     <Route path="/explore" element={<ExploreOpenPlay />} />
                     <Route path="/user/login" element={<UserLogin />} />
                     <Route path="/legal" element={<LegalPage />} />
+                    <Route path="/auth/forgot-password" element={<ForgotPassword />} />
 
                     {/* --- RUTE DASHBOARD (Dibungkus oleh Layout) --- */}
                     <Route element={<DashboardLayout />}>

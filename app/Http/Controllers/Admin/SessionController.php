@@ -268,15 +268,28 @@ class SessionController extends Controller
             $session = Session::with('group.tenant')->findOrFail($sessionId);
             $user = \App\Models\User::findOrFail($userId);
             $tenantId = $session->group->tenant_id;
-
+            
             $config = $this->resolvePaymentConfig($tenantId);
             if (!$config) return response()->json(['message' => 'Sistem pembayaran belum siap.'], 400);
 
             $isKoleksiKas = $config->provider === 'koleksikas';
             $isStaticQris = $config->provider === 'static_qris';
 
-            $feeSetting = \App\Models\GlobalSetting::where('key', 'platform_fee')->first();
-            $platformFee = $isKoleksiKas ? ((int) ($feeSetting->value ?? 0)) : 0;
+            // 👇 CEK JENIS LISENSI TENANT INI 👇
+            $license = \App\Models\MitraLicense::with('tier')
+                ->where('mitra_id', $session->group->tenant->mitra_id)
+                ->where('status', 'active')
+                ->first();
+
+            $tierSlug = $license->tier->slug ?? 'starter'; // Default ke starter jika gagal ambil data
+            
+            $platformFee = 0;
+
+            // Jika pakai KoleksiKAS dan paketnya Starter, maka dikenakan Platform Fee
+            if ($isKoleksiKas && $tierSlug === 'starter') {
+                $feeSetting = \App\Models\GlobalSetting::where('key', 'platform_fee')->first();
+                $platformFee = (int) ($feeSetting->value ?? 0);
+            }
             
             $baseAmount = (int) $session->price;
             $totalAmount = $baseAmount + $platformFee;
@@ -294,7 +307,6 @@ class SessionController extends Controller
             if ($billItem->status === 'paid') return response()->json(['already_paid' => true, 'message' => 'Tagihan ini sudah lunas.']);
 
             if ($isStaticQris) {
-                // ... (Kode Static QRIS Tetap Sama)
                 $payloadData = json_decode($config->payload, true);
                 $qrImage = $payloadData['qr_image'] ?? null;
                 if (!$qrImage) return response()->json(['message' => 'QRIS Statis belum diatur oleh Admin komunitas ini.'], 400);
@@ -327,11 +339,9 @@ class SessionController extends Controller
             $pendingTx = Transaction::where('bill_item_id', $billItem->id)->where('status', 'pending')->first();
             
             if ($pendingTx && $pendingTx->payment_url) {
-                // Hitung batas waktu QRIS Pakasir (1 jam dari waktu pembuatan)
                 $expiresAt = $pendingTx->created_at->addHour();
 
                 if (now()->greaterThan($expiresAt)) {
-                    // QRIS HANGUS! Batalkan transaksi lama agar sistem membuat yang baru di bawah.
                     $pendingTx->update(['status' => 'expired']);
                     $pendingTx = null; 
                 } else {
@@ -349,21 +359,18 @@ class SessionController extends Controller
                                 'pakasir_fee' => $pakasirFee,
                                 'grand_total' => $totalAmount + $pakasirFee, 
                                 'due_date' => \Carbon\Carbon::parse($session->scheduled_at)->format('d M Y, H:i'),
-                                // Format ISO agar React langsung paham tanpa regex aneh-aneh!
                                 'qris_expires_at' => $expiresAt->format('Y-m-d H:i:s'), 
                                 'qr_string' => $pendingTx->payment_url,
                                 'is_static' => false 
                             ]
                         ]);
                     } else {
-                        // Harga berubah, batalkan tagihan lama
                         $pendingTx->update(['status' => 'expired']);
                         $pendingTx = null;
                     }
                 }
             }
 
-            // BIKIN TRANSAKSI & QRIS BARU JIKA TIDAK ADA YANG PENDING / SUDAH EXPIRED
             $transactionId = (string) Str::uuid();
             $pakasir = new \App\Services\Payment\PakasirService($config->payload);
             $charge = $pakasir->createCharge(['amount' => $totalAmount, 'user' => $user, 'transaction_id' => $transactionId]);
@@ -387,7 +394,7 @@ class SessionController extends Controller
                     'pakasir_fee' => $pakasirFee,
                     'grand_total' => $grandTotal, 
                     'due_date' => \Carbon\Carbon::parse($session->scheduled_at)->format('d M Y, H:i'),
-                    'qris_expires_at' => now()->addHour()->format('Y-m-d H:i:s'), // ISO Format
+                    'qris_expires_at' => now()->addHour()->format('Y-m-d H:i:s'),
                     'qr_string' => $charge['qr_code'],
                     'is_static' => false
                 ]
