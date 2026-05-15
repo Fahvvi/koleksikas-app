@@ -65,13 +65,14 @@ export default function UserLogin() {
         e.preventDefault();
         setIsLoading(true);
         try {
+            await axios.get('/sanctum/csrf-cookie');
             let formattedPhone = phone.replace(/[^0-9]/g, '');
             const response = await axios.post('/api/v1/auth/login', {
                 phone_wa: formattedPhone, password: password, role: 'user' 
             });
 
-            localStorage.setItem('auth_token', response.data.access_token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            // localStorage.setItem('auth_token', response.data.access_token);
+            // localStorage.setItem('user', JSON.stringify(response.data.user));
             
             KasToast.fire({ icon: 'success', title: 'Berhasil masuk!' }).then(() => navigate(returnUrl));
         } catch (error) {
@@ -108,13 +109,14 @@ export default function UserLogin() {
         e.preventDefault();
         setIsLoading(true);
         try {
+            await axios.get('/sanctum/csrf-cookie');
             let formattedPhone = phone.replace(/[^0-9]/g, '');
             const response = await axios.post('/api/v1/auth/verify-otp', {
                 name: name, phone_wa: formattedPhone, otp: otp, password: password, type: authType 
             });
 
-            localStorage.setItem('auth_token', response.data.access_token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            // localStorage.setItem('auth_token', response.data.access_token);
+            // localStorage.setItem('user', JSON.stringify(response.data.user));
             
             KasSwal.fire({
                 icon: 'success', title: 'Berhasil!',

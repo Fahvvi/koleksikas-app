@@ -187,7 +187,6 @@ export default function DashboardLayout() {
             console.error(e);
         } finally {
             localStorage.removeItem('user');
-            localStorage.removeItem('token');
             delete axios.defaults.headers.common['Authorization'];
             navigate('/auth/login');
         }

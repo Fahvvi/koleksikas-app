@@ -35,12 +35,42 @@ export default function UserProfile() {
         }
     };
 
-    const triggerSensitiveUpdate = (type) => {
-        // Kirim OTP via WAHA/Email
-        axios.post('/api/v1/user/otp/request', { type }).then(() => {
+    const triggerSensitiveUpdate = async (type) => {
+        let channel = 'wa'; // Default channel
+
+        // Jika mengubah password, berikan opsi pilihan
+        if (type === 'change_password') {
+            const { value: selectedChannel } = await MySwal.fire({
+                title: 'Pilih Metode Verifikasi',
+                text: 'Kirim kode OTP untuk ganti password melalui:',
+                input: 'radio',
+                inputOptions: {
+                    'wa': 'WhatsApp',
+                    'email': 'Email'
+                },
+                inputValue: 'wa', // Default yang terpilih
+                showCancelButton: true,
+                confirmButtonColor: '#842A3B',
+                confirmButtonText: 'Kirim OTP',
+                cancelButtonText: 'Batal',
+                customClass: { popup: 'rounded-3xl' }
+            });
+
+            if (!selectedChannel) return; // Batalkan jika user klik di luar / cancel
+            channel = selectedChannel;
+        }
+
+        // Kirim Request
+        axios.post('/api/v1/user/otp/request', { type, channel }).then((res) => {
             setPendingAction(type);
             setIsOtpModalOpen(true);
-            Toast.fire({ icon: 'info', title: 'Kode OTP terkirim!' });
+            
+            // Tampilkan debug code di Console jika local
+            if(res.data.debug_code) console.log("Kode OTP:", res.data.debug_code);
+            
+            Toast.fire({ icon: 'info', title: res.data.message });
+        }).catch(err => {
+            MySwal.fire('Gagal', err.response?.data?.message || 'Gagal mengirim OTP', 'error');
         });
     };
 

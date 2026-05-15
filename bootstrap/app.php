@@ -7,6 +7,7 @@ use App\Models\SystemLog;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Illuminate\Validation\ValidationException;
+use App\Http\Middleware\SecurityHeaders;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -17,6 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->append(SecurityHeaders::class);
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+        
         $middleware->alias([
         'tenant' => \App\Http\Middleware\EnsureTenantMiddleware::class,
         'role' => \App\Http\Middleware\RoleMiddleware::class, // Jika nanti role middleware dibuat

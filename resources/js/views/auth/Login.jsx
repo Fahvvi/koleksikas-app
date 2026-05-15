@@ -72,10 +72,12 @@ export default function AuthPortal() {
         setIsLoading(true);
 
         try {
+            await axios.get('/sanctum/csrf-cookie');
+            
             const response = await axios.post('/api/v1/auth/login', loginData);
-            const { access_token: token, user } = response.data;
-
-            localStorage.setItem('auth_token', token); 
+            // const { access_token: token, user } = response.data;
+            const { user } = response.data;
+            
             localStorage.setItem('user', JSON.stringify(user));
 
             // Gunakan Toast Custom untuk Sukses

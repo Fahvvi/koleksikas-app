@@ -4,14 +4,26 @@ window.axios = axios;
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.headers.common['Accept'] = 'application/json'; // <-- Tambahkan ini
 window.axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
-
+window.axios.defaults.withCredentials = true; 
+window.axios.defaults.withXSRFToken = true;
 
 axios.interceptors.request.use(function (config) {
-    // 1. Ambil token dari Local Storage (brankas browser)
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+
+    
+    window.axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            // Hapus sisa remah-remah identitas
+            localStorage.removeItem('user');
+            
+            if (window.location.pathname !== '/auth/login' && window.location.pathname !== '/user/login') {
+                window.location.href = '/auth/login?session_expired=true';
+            }
+        }
+        return Promise.reject(error);
     }
+);
 
     window.axios.interceptors.response.use(
     (response) => response, // Biarkan jika response sukses (200)

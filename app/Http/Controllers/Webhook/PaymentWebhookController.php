@@ -9,7 +9,7 @@ use App\Models\SystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache; // 👈 Tambahan untuk menarik Password dari Memory
+use Illuminate\Support\Facades\Cache;
 use App\Jobs\WA\SendWaMemberConfirmJob;
 
 class PaymentWebhookController extends Controller
@@ -39,11 +39,10 @@ class PaymentWebhookController extends Controller
                 return response()->json(['message' => 'Transaksi sudah diproses sebelumnya'], 200);
             }
 
-            // CEK APAKAH INI PEMBAYARAN LISENSI B2B ATAU PEMBAYARAN IURAN MEMBER
             $payloadData = json_decode($transaction->payload, true);
             $isLicensePayment = ($payloadData && isset($payloadData['type']) && $payloadData['type'] === 'license_activation');
 
-            // 3. RESOLUSI CONFIG
+            // RESOLUSI CONFIG
             if ($isLicensePayment) {
                 $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
                 $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
@@ -57,14 +56,38 @@ class PaymentWebhookController extends Controller
             
             if (!$config) return response()->json(['message' => 'Konfigurasi Gateway tidak ditemukan'], 500);
 
-            $paymentService = $this->getPaymentService($config);
+            // ==========================================================
+            // 🛡️ FIX SECURITY: STRICT LOCAL HMAC SIGNATURE VERIFICATION
+            // ==========================================================
+            $configData = json_decode($config->payload, true);
+            $secretKey = $configData['api_key'] ?? ''; // Gunakan API Key / Webhook Secret sebagai Kunci HMAC
+            
             $signature = $request->header('X-Callback-Signature') ?? $request->header('X-Signature');
+            $rawPayload = $request->getContent(); // Ambil body JSON murni secara utuh (PENTING untuk HMAC)
 
-            if (!$paymentService->verifyWebhook($request->all(), $signature)) {
-                return response()->json(['message' => 'Invalid Signature! Akses ditolak.'], 403);
+            if (!$signature) {
+                SystemLog::create(['level' => 'warning', 'service' => 'payment', 'message' => "SPOOFING ATTEMPT: Webhook tanpa signature untuk Order ID: {$orderId}"]);
+                return response()->json(['message' => 'Missing Signature! Akses ditolak.'], 403);
             }
 
-            // 4. PROSES PEMBAYARAN BERHASIL
+            // Hitung signature lokal. (Catatan: Ubah 'sha256' menjadi 'md5' atau 'sha512' jika API provider menggunakan algoritma tersebut).
+            $expectedSignature = hash_hmac('sha256', $rawPayload, $secretKey);
+
+            // Gunakan hash_equals() untuk mencegah Timing Attack!
+            // Jangan pernah menggunakan operator (==) atau (===) untuk membandingkan password/signature.
+            if (!hash_equals($expectedSignature, $signature)) {
+                SystemLog::create([
+                    'level' => 'critical', 'service' => 'payment',
+                    'message' => "SPOOFING ATTEMPT: Signature mismatch! Asli: {$expectedSignature} | Palsu: {$signature}"
+                ]);
+                return response()->json(['message' => 'Invalid Signature! Akses ditolak.'], 403);
+            }
+            // ==========================================================
+
+            // Opsional: Anda tetap bisa memanggil getPaymentService jika butuh ekstraksi data khusus dari provider
+            // $paymentService = $this->getPaymentService($config);
+
+            // PROSES PEMBAYARAN BERHASIL
             $transactionStatus = $request->input('transaction_status') ?? $request->input('status');
 
             if (in_array($transactionStatus, ['settlement', 'capture', 'paid', 'completed', 'success'])) {
@@ -77,20 +100,16 @@ class PaymentWebhookController extends Controller
                     ]);
 
                     if ($isLicensePayment) {
-                        // EKSEKUSI PEMBUATAN AKUN & TENANT JIKA BAYAR LISENSI LUNAS!
                         $mitra = \App\Models\Mitra::find($payloadData['mitra_id']);
                         $tier = \App\Models\LicenseTier::where('slug', $payloadData['tier_slug'])->first();
                         
                         if ($mitra && $tier && $mitra->status !== 'active') {
-                            
-                            // 👇 FIX SECURITY: Tarik Password Hash dari Cache & Langsung Hapus dari Memory 👇
                             $hashedPassword = Cache::pull("mitra_activation_{$transaction->id}");
 
                             $registerController = new \App\Http\Controllers\MitraRegisterController();
                             $registerController->executeActivation($mitra, $tier, $hashedPassword);
                         }
                     } else {
-                        // LOGIKA NORMAL IURAN MEMBER
                         if ($transaction->billItem) {
                             $transaction->billItem->update(['status' => 'paid', 'paid_at' => now()]);
                         }
@@ -127,18 +146,14 @@ class PaymentWebhookController extends Controller
         }
     }
 
-    // --- HELPER UNTUK MENGAMBIL CONFIG GLOBAL / LOKAL ---
     private function resolvePaymentConfig($tenantId)
     {
-        // Ambil config milik tenant (Sesuai kesepakatan, tanpa is_active dulu jika belum ada di DB)
         $config = \App\Models\PaymentConfig::where('tenant_id', $tenantId)->first();
 
-        // JIKA tenant punya config SENDIRI (pakasir/midtrans), gunakan itu!
         if ($config && $config->provider !== 'koleksikas') {
             return $config;
         }
 
-        // JIKA tenant pilih 'koleksikas' ATAU belum punya config, gunakan GLOBAL PAKASIR
         $globalProject = \App\Models\GlobalSetting::where('key', 'pakasir_project')->first();
         $globalApiKey = \App\Models\GlobalSetting::where('key', 'pakasir_api_key')->first();
 

@@ -52,10 +52,11 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
         return response()->json([
-            'access_token' => $token,
+            'success' => true,
             'user' => $user
         ]);
     }
@@ -163,10 +164,12 @@ class AuthController extends Controller
         }
         
         Cache::forget('otp_' . $phone62);
-        $token = $user->createToken('auth_token')->plainTextToken;
+        
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
 
         return response()->json([
-            'access_token' => $token,
+            'success' => true,
             'user' => $user,
             'message' => $request->type === 'register' ? 'Pendaftaran berhasil!' : 'Password berhasil diubah!'
         ]);
@@ -182,7 +185,11 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::guard('web')->logout();
+        
+        // Hancurkan session cookie secara total
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'success' => true,
