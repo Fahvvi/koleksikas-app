@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Services\WhatsApp\WahaService;
-// use Illuminate\Support\Facades\Mail; // Siap diaktifkan nanti
+use Illuminate\Support\Facades\Mail; 
 
 class ProfileController extends Controller
 {
@@ -26,6 +26,14 @@ class ProfileController extends Controller
         $user->name = $request->name;
         $user->save();
 
+        // 👇 SINKRONISASI OTOMATIS KE TABEL MITRAS (Jika user adalah Admin Mitra) 👇
+        if ($user->role === 'admin' && $user->tenant_id) {
+            $tenant = \App\Models\Tenant::find($user->tenant_id);
+            if ($tenant) {
+                \App\Models\Mitra::where('id', $tenant->mitra_id)->update(['name' => $user->name]);
+            }
+        }
+
         return response()->json(['success' => true, 'message' => 'Nama berhasil diperbarui.']);
     }
 
@@ -33,30 +41,26 @@ class ProfileController extends Controller
     {
         $request->validate([
             'type' => 'required|string|in:change_email,change_phone,change_password',
-            'channel' => 'nullable|string|in:email,wa' // Opsional untuk change_password
+            'channel' => 'nullable|string|in:email,wa' 
         ]); 
         
         $user = $request->user();
 
         // --- LOGIKA SILANG (CROSS-CHANNEL) ---
-        $sendMethod = 'wa'; // Default
+        $sendMethod = 'wa'; 
         $targetIdentifier = null;
 
         if ($request->type === 'change_phone') {
-            // Ganti WA -> Kirim ke Email
             $targetIdentifier = $user->email;
             $sendMethod = 'email';
         } elseif ($request->type === 'change_email') {
-            // Ganti Email -> Kirim ke WA
             $targetIdentifier = $user->phone_wa;
             $sendMethod = 'wa';
         } elseif ($request->type === 'change_password') {
-            // Ganti Password -> Sesuai Pilihan User (Default WA jika kosong)
             $sendMethod = $request->channel === 'email' ? 'email' : 'wa';
             $targetIdentifier = $sendMethod === 'email' ? $user->email : $user->phone_wa;
         }
 
-        // Validasi: Tolak jika email/WA tujuan ternyata kosong di database
         if (empty($targetIdentifier)) {
             return response()->json([
                 'message' => 'Kontak tujuan (' . strtoupper($sendMethod) . ') tidak tersedia. Silakan hubungi Super Admin.'
@@ -70,21 +74,17 @@ class ProfileController extends Controller
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'user_id' => $user->id,
             'identifier' => $targetIdentifier,
-            'code' => $code, // 👈 Sesuai kolom fillable!
+            'code' => $code, 
             'type' => $request->type,
             'expires_at' => now()->addMinutes(10)
         ]);
 
         try {
             if ($sendMethod === 'email') {
-                // 👇 EMAIL OTP (Buka komen ini jika SMTP sudah jalan) 👇
-                /*
-                \Illuminate\Support\Facades\Mail::raw("Kode OTP Anda: {$code}", function ($message) use ($targetIdentifier) {
+                \Illuminate\Support\Facades\Mail::raw("🔒 VERIFIKASI KEAMANAN\n\nSeseorang sedang mencoba mengubah profil Anda. Masukkan 6 digit kode OTP ini:\n\n👉 {$code}\n\nBerlaku 10 menit. Abaikan pesan ini jika Anda tidak merasa memintanya.\n\nSalam,\nTim KoleksiKAS", function ($message) use ($targetIdentifier) {
                     $message->to($targetIdentifier)->subject('Kode Verifikasi Profil KoleksiKAS');
                 });
-                */
             } else {
-                // 👇 WHATSAPP OTP 👇
                 $waha = new \App\Services\WhatsApp\WahaService();
                 $pesan = "🔒 *VERIFIKASI KEAMANAN*\n\n"
                        . "Seseorang sedang mencoba mengubah profil Anda. Masukkan 6 digit kode OTP ini:\n\n"
@@ -115,7 +115,6 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        // Cari OTP berdasarkan "code" dan "type"
         $otp = OtpCode::where('user_id', $user->id)
             ->where('type', $request->type)
             ->where('code', $request->code)
@@ -138,9 +137,24 @@ class ProfileController extends Controller
         }
 
         $user->save();
-
         $otp->is_used = true;
         $otp->save();
+
+        // 👇 SINKRONISASI OTOMATIS KE TABEL MITRAS (Jika user adalah Admin Mitra) 👇
+        if ($user->role === 'admin' && $user->tenant_id) {
+            $tenant = \App\Models\Tenant::find($user->tenant_id);
+            if ($tenant) {
+                $mitra = \App\Models\Mitra::find($tenant->mitra_id);
+                if ($mitra) {
+                    if ($request->type === 'change_email') {
+                        $mitra->email = $user->email;
+                    } elseif ($request->type === 'change_phone') {
+                        $mitra->phone = $user->phone_wa;
+                    }
+                    $mitra->save();
+                }
+            }
+        }
 
         SystemLog::create([
             'level' => 'info', 'service' => 'system',

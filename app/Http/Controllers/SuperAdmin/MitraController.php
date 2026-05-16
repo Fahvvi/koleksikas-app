@@ -76,23 +76,28 @@ class MitraController extends Controller
         $mitras = \App\Models\Mitra::orderBy('created_at', 'desc')->get();
         
         $data = $mitras->map(function ($mitra) {
-            // SINKRONISASI LISENSI: Pastikan mengambil yang "active" dan "paling baru"
+            // SINKRONISASI LISENSI
             $activeLicense = \App\Models\MitraLicense::where('mitra_id', $mitra->id)
-                ->where('status', 'active') // <-- INI YANG BIKIN PAKET BERUBAH DI TABEL
+                ->where('status', 'active')
                 ->with('tier')
                 ->latest()
                 ->first();
 
-            // Hitung total member tenant tersebut (Opsional jika ingin ditampilkan)
             $tenant = \App\Models\Tenant::where('mitra_id', $mitra->id)->first();
+            
+            // 👇 FIX: AMBIL DATA AKUN ADMIN SEBENARNYA 👇
+            $adminUser = $tenant ? \App\Models\User::where('tenant_id', $tenant->id)->where('role', 'admin')->first() : null;
+
+            // Hitung total member tenant tersebut
             $totalMembers = $tenant ? \App\Models\User::where('tenant_id', $tenant->id)->where('role', '!=', 'super_admin')->count() : 0;
 
             return [
                 'id' => $mitra->id,
-                'name' => $mitra->name,
                 'company_name' => $mitra->company_name,
-                'email' => $mitra->email,
-                'phone' => $mitra->phone,
+                // PRIORITASKAN DATA ADMIN (Jika admin belum dibuat, fallback ke data registrasi awal)
+                'name' => $adminUser ? $adminUser->name : $mitra->name,
+                'email' => $adminUser ? $adminUser->email : $mitra->email,
+                'phone' => $adminUser ? $adminUser->phone_wa : $mitra->phone,
                 'address' => $mitra->address,
                 'status' => $mitra->status,
                 'tier_name' => $activeLicense && $activeLicense->tier ? $activeLicense->tier->name : 'Tidak Ada',
