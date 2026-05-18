@@ -13,6 +13,12 @@ axios.interceptors.request.use(function (config) {
     window.axios.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (error.response && error.response.status === 403 && error.response.data.account_suspended) {
+            localStorage.removeItem('user'); // Hancurkan profil di React
+            window.location.href = '/auth/login?suspended=true'; // Lempar ke login
+            return Promise.reject(error);
+        }
+        
         if (error.response && error.response.status === 401) {
             // Hapus sisa remah-remah identitas
             localStorage.removeItem('user');

@@ -52,6 +52,19 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($user->role === 'admin' && $user->tenant_id) {
+            $tenant = \App\Models\Tenant::find($user->tenant_id);
+            if ($tenant) {
+                $mitra = \App\Models\Mitra::find($tenant->mitra_id);
+                if ($mitra && $mitra->status === 'suspended') {
+                    return response()->json([
+                        'account_suspended' => true,
+                        'message' => 'Akses Ditolak! Komunitas Anda sedang ditangguhkan/diblokir oleh Super Admin.'
+                    ], 403);
+                }
+            }
+        }
+
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
 
