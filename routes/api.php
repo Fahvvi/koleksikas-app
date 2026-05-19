@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Public\SessionRegistrationController;
 use App\Http\Controllers\Webhook\WahaWebhookController;
 use App\Http\Controllers\Webhook\PaymentWebhookController;
+use App\Http\Controllers\Api\BotController;
 
 Route::prefix('v1')->group(function () {
     
@@ -55,7 +56,11 @@ Route::prefix('v1')->group(function () {
     // WEBHOOKS ROUTES (Nanti akan kita amankan dengan Signature Verification)
     Route::post('/webhook/waha-receive', [WahaWebhookController::class, 'handle']);
     Route::post('/webhook/{provider}', [PaymentWebhookController::class, 'handle']);
-
+    
+    // Endpoint Khusus N8N Bot
+            Route::prefix('bot')->group(function () {
+                Route::get('/tagihan', [BotController::class, 'cekTagihan']);
+            });
 
     // ==========================================
     // PROTECTED ROUTES (Harus Login)
@@ -177,6 +182,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/user/history', [\App\Http\Controllers\User\MemberController::class, 'history']);
         Route::put('/user/profile', [\App\Http\Controllers\User\MemberController::class, 'updateProfile']);
 
+        
     });
 });
 
